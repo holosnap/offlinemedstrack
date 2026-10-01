@@ -5,8 +5,10 @@ import { Alert, StyleSheet, View } from 'react-native';
 import { AppText, Badge, Button, Card, Screen, spacing, usePalette } from '@/components';
 import { useDatabase } from '@/db/DatabaseProvider';
 import type { DoseLog } from '@/db/models';
-import { describeSchedule, formatDateTime, formatLocalDate, formatQuantity } from '@/lib/format';
-import { LowSupplyBadge } from '../components/LowSupplyBadge';
+import { describeSchedule, formatDateTime, formatQuantity } from '@/lib/format';
+import { CallPharmacyButton } from '@/features/refills/components/CallPharmacyButton';
+import { SupplyBadge } from '@/features/refills/components/SupplyBadge';
+import { onHandText, runOutBasisNote, runOutLabel } from '@/features/refills/format';
 import { dosageLabel, nextDoseLabel } from '../components/MedicationCard';
 import { loadMedicationDetail, removeMedication, setActive, type MedicationDetail } from '../data';
 import { useLoad } from '../useLoad';
@@ -19,23 +21,11 @@ const STATUS_LABELS: Record<DoseLog['status'], string> = {
 };
 
 export function supplyText(detail: MedicationDetail): string {
-  if (!detail.inventory) return 'No supply recorded';
-  const { currentQuantity, unit } = detail.inventory;
-  return `${formatQuantity(currentQuantity)} ${unit}`;
+  return onHandText(detail);
 }
 
 export function runOutText(detail: MedicationDetail): string {
-  if (!detail.inventory) return 'Not available';
-  if (detail.inventory.currentQuantity === 0) return 'Out of supply';
-  if (detail.runOutDate === null || detail.daysOfSupply === null) {
-    return detail.asNeeded
-      ? "Can't estimate — this is taken only when needed"
-      : "Can't estimate — no active schedule";
-  }
-  const days = Math.floor(detail.daysOfSupply);
-  const left =
-    days === 0 ? 'less than a day left' : `about ${days} ${days === 1 ? 'day' : 'days'} left`;
-  return `${formatLocalDate(detail.runOutDate, { weekday: true })} (${left})`;
+  return runOutLabel(detail);
 }
 
 export function MedicationDetailScreen({ medicationId }: { medicationId: number }) {
@@ -109,7 +99,7 @@ export function MedicationDetailScreen({ medicationId }: { medicationId: number 
         <AppText muted>{dosageLabel(data)}</AppText>
         <View style={styles.badges}>
           {!medication.active ? <Badge label="Paused" /> : null}
-          {data.lowSupply ? <LowSupplyBadge /> : null}
+          <SupplyBadge status={data.supplyStatus} />
         </View>
         {medication.instructions ? <AppText>{medication.instructions}</AppText> : null}
       </View>
@@ -142,8 +132,70 @@ export function MedicationDetailScreen({ medicationId }: { medicationId: number 
         <View>
           <AppText muted>Estimated to run out</AppText>
           <AppText variant="heading">{runOutText(data)}</AppText>
+          {runOutBasisNote(data) ? (
+            <AppText variant="caption" muted>
+              {runOutBasisNote(data)}
+            </AppText>
+          ) : null}
         </View>
+        {data.inventory && data.inventory.refillsRemaining !== null ? (
+          <View>
+            <AppText muted>Refills left on the prescription</AppText>
+            <AppText variant="heading">
+              {data.inventory.refillsRemaining === 0
+                ? 'None. Contact your doctor for a new prescription'
+                : String(data.inventory.refillsRemaining)}
+            </AppText>
+          </View>
+        ) : null}
+        {data.inventory?.pharmacyName || data.inventory?.pharmacyPhone ? (
+          <View>
+            <AppText muted>Pharmacy</AppText>
+            <AppText variant="heading">
+              {[data.inventory.pharmacyName, data.inventory.pharmacyPhone]
+                .filter(Boolean)
+                .join(' · ')}
+            </AppText>
+          </View>
+        ) : null}
+        {data.inventory ? (
+          <>
+            <Button
+              label="Record refill"
+              accessibilityHint="Adds a pickup to your supply"
+              onPress={() => router.push(`/medications/${medicationId}/refill`)}
+            />
+            <CallPharmacyButton
+              phone={data.inventory.pharmacyPhone}
+              pharmacyName={data.inventory.pharmacyName}
+            />
+            {!data.inventory.pharmacyPhone ? (
+              <AppText variant="caption" muted>
+                Add the pharmacy phone number in Edit to call from here.
+              </AppText>
+            ) : null}
+          </>
+        ) : null}
       </Card>
+
+      {data.refills.length > 0 ? (
+        <Card title="Refill history">
+          {data.refills.map((refill) => (
+            <View
+              key={refill.id}
+              accessible
+              accessibilityLabel={`${formatQuantity(refill.quantityAdded)} ${data.inventory?.unit ?? ''} added ${formatDateTime(refill.date, now)}${refill.note ? `. ${refill.note}` : ''}`}
+              style={styles.historyRow}
+            >
+              <AppText style={styles.bold}>
+                {`+${formatQuantity(refill.quantityAdded)} ${data.inventory?.unit ?? ''}`}
+              </AppText>
+              <AppText muted>{formatDateTime(refill.date, now)}</AppText>
+              {refill.note ? <AppText muted>{refill.note}</AppText> : null}
+            </View>
+          ))}
+        </Card>
+      ) : null}
 
       <Card title="Recent doses">
         {history.length === 0 ? (

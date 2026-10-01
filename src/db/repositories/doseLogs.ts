@@ -255,3 +255,22 @@ export async function listScheduledDoses(
 export function listTodaysDoses(db: Database, now: Date = new Date()): Promise<ScheduledDose[]> {
   return listScheduledDoses(db, localDateOf(now));
 }
+
+/**
+ * Total quantity of taken doses per medication whose scheduled time is in `[from, to)`. Medications
+ * with no taken doses are absent from the map.
+ */
+export async function sumTakenByMedication(
+  db: Database,
+  from: Date | string,
+  to: Date | string,
+): Promise<Map<number, number>> {
+  const rows = await db.getAllAsync<{ medication_id: number; total: number }>(
+    `SELECT medication_id, SUM(COALESCE(quantity, 0)) AS total
+       FROM dose_logs
+      WHERE status = 'taken' AND scheduled_for >= ? AND scheduled_for < ?
+      GROUP BY medication_id`,
+    [toUtcIso(from), toUtcIso(to)],
+  );
+  return new Map(rows.map((r) => [r.medication_id, r.total]));
+}

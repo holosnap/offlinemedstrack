@@ -4,6 +4,7 @@ import * as TaskManager from 'expo-task-manager';
 import { getDatabase } from '@/db/client';
 import { handleNotificationResponse, type ResponseLike } from './actions';
 import { expoPort } from './expoPort';
+import { syncReminders } from './sync';
 
 const TASK_NAME = 'dose-notification-response';
 
@@ -18,6 +19,8 @@ TaskManager.defineTask<unknown>(TASK_NAME, async ({ data, error }) => {
   try {
     const db = await getDatabase();
     await handleNotificationResponse({ db, port: expoPort }, data);
+    // A logged dose changes supply, which may cross the refill threshold.
+    await syncReminders(db);
   } catch (e) {
     console.warn('Could not handle notification action', e);
   }

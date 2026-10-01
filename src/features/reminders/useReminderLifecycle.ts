@@ -29,6 +29,7 @@ export function useReminderLifecycle(): void {
     const respond = async (response: ResponseLike) => {
       const db = await getDatabase();
       const outcome = await handleNotificationResponse({ db, port: expoPort }, response);
+      if (outcome.type === 'logged') await syncReminders(db);
       if (outcome.type === 'open') router.push(`/medications/${outcome.medicationId}`);
     };
 

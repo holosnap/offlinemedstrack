@@ -2,8 +2,10 @@ import { NotFoundError } from '../errors';
 import { REFILL_THRESHOLD_UNITS, type Inventory, type RefillThresholdUnit } from '../models';
 import { buildSet } from '../sql';
 import type { Database } from '../types';
-import { daysOfSupply as estimateDays, dailyUsage, isLowSupply } from '@/lib/supply';
-import { localDateOf, nowUtc } from '@/lib/time';
+import { asNeededPerDay, AS_NEEDED_WINDOW_DAYS, isLowSupply, projectSupply } from '@/lib/supply';
+import { addDays, localDateOf, localDayRangeUtc, nowUtc } from '@/lib/time';
+import { sumTakenByMedication } from './doseLogs';
+import { getMedication } from './medications';
 import { listActiveSchedulesInRange } from './schedules';
 
 interface InventoryRow {
@@ -177,15 +179,25 @@ export async function listLowStock(db: Database, now: Date = new Date()): Promis
   );
   const today = localDateOf(now);
   const schedules = await listActiveSchedulesInRange(db, today, today);
+  const { from } = localDayRangeUtc(addDays(today, -AS_NEEDED_WINDOW_DAYS));
+  const taken = await sumTakenByMedication(db, from, now);
   const low: LowStockItem[] = [];
   for (const row of rows) {
     const inventory = toInventory(row);
-    const usage = dailyUsage(
-      schedules.filter((s) => s.medicationId === inventory.medicationId),
+    const medication = await getMedication(db, inventory.medicationId);
+    const projection = projectSupply({
+      quantity: inventory.currentQuantity,
+      schedules: schedules.filter((s) => s.medicationId === inventory.medicationId),
       today,
-    );
-    const daysOfSupply = estimateDays(inventory.currentQuantity, usage);
-    if (isLowSupply(inventory, daysOfSupply)) low.push({ inventory, daysOfSupply });
+      asNeededPerDay: asNeededPerDay(
+        taken.get(inventory.medicationId) ?? 0,
+        medication?.createdAt ?? now.toISOString(),
+        now,
+      ),
+    });
+    if (isLowSupply(inventory, projection.daysRemaining)) {
+      low.push({ inventory, daysOfSupply: projection.daysRemaining });
+    }
   }
   return low;
 }

@@ -32,6 +32,13 @@ Path alias: `@/*` maps to `src/*` (e.g. `import { db } from '@/db/client'`).
 - As-needed doses are logged with `scheduledFor` = the time taken (no schedule slot).
 - Settings are key/value rows (`settings` table, migration 002); use `getSettings`/`updateSettings` in `src/features/settings/settings.ts`.
 
+## Refills and supply (`src/lib/supply.ts`, `src/features/refills`)
+
+- `projectSupply()` (pure) simulates dose by dose from today, so weekday-only and every-N-days schedules are exact; run-out date = the first dose the supply can't cover, `daysRemaining` = whole days until then (0 = today). As-needed medications use their average use over the last 30 days (`asNeededPerDay`, loaded by `refills/usage.ts`), or have no estimate. Use `buildSummary()` (`features/medications/summary.ts`) rather than calling the helpers piecemeal; `isLowSupply` is inclusive.
+- Refill reminders are planned by `refills/planner.ts` (pure) and scheduled by `reconcile()` like dose reminders (ids `refill:{med}:1|2|doctor`). Per low-supply episode at most two reminders: next 09:00 after the episode starts, and 09:00 two days later if still unresolved; times already in the past are never re-planned. An episode ends only when quantity rises above the lowest seen (a refill). When `refillsRemaining` is 0 one "contact your doctor" reminder is planned (folded into the low-supply text if supply is also low). Episode state lives in the `refill_alerts` table (migration 003); reconcile maintains it.
+- Record refills only through `saveRefill()` (`refills/data.ts`), which wraps the atomic `recordRefill` repo function (inventory + refillsRemaining - 1 + RefillEvent) and then syncs reminders.
+- Tabs: Today, Medications, Refills (sorted by `buildRefillList`), Settings.
+
 ## Dose reminders (`src/features/reminders`)
 
 - `reconcile()` in `reconcile.ts` is the **only** code that schedules or cancels dose notifications. It derives the desired set from the DB (active schedules, rolling 7-day window, minus doses already taken/skipped), diffs against what the OS has pending, cancels stale and schedules missing. Never schedule or cancel notifications anywhere else.

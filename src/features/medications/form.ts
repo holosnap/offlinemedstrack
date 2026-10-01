@@ -7,6 +7,7 @@ import type {
   ScheduleType,
 } from '@/db/models';
 import type { NewInventory, NewMedication, NewSchedule } from '@/db/repositories';
+import { isValidPhone } from '@/lib/format';
 import { isLocalDate, localDateOf, parseTimeInput } from '@/lib/time';
 
 export interface FormValues {
@@ -27,6 +28,10 @@ export interface FormValues {
   inventoryUnit: string;
   refillThreshold: string;
   refillThresholdUnit: RefillThresholdUnit;
+  refillsRemaining: string;
+  pharmacyName: string;
+  pharmacyPhone: string;
+  prescriptionNumber: string;
 }
 
 /** Keys are field names; per-row time errors use `time-<index>`. */
@@ -68,6 +73,10 @@ export function emptyFormValues(now: Date = new Date()): FormValues {
     inventoryUnit: FORM_UNIT_DEFAULTS.tablet,
     refillThreshold: '7',
     refillThresholdUnit: 'days',
+    refillsRemaining: '',
+    pharmacyName: '',
+    pharmacyPhone: '',
+    prescriptionNumber: '',
   };
 }
 
@@ -110,6 +119,11 @@ export function formValuesFromStored(
           inventoryUnit: inventory.unit,
           refillThreshold: inventory.refillThreshold === null ? '' : num(inventory.refillThreshold),
           refillThresholdUnit: inventory.refillThresholdUnit ?? 'days',
+          refillsRemaining:
+            inventory.refillsRemaining === null ? '' : String(inventory.refillsRemaining),
+          pharmacyName: inventory.pharmacyName ?? '',
+          pharmacyPhone: inventory.pharmacyPhone ?? '',
+          prescriptionNumber: inventory.prescriptionNumber ?? '',
         }
       : { inventoryUnit: FORM_UNIT_DEFAULTS[medication.form] }),
   };
@@ -197,6 +211,20 @@ export function validateForm(values: FormValues): ValidationResult {
     );
   }
 
+  let refillsRemaining: number | null = null;
+  if (values.refillsRemaining.trim() !== '') {
+    const n = parseNumber(values.refillsRemaining);
+    if (n === null || !Number.isInteger(n)) {
+      errors.refillsRemaining = 'Refills left must be a whole number, like 2. Use 0 if none.';
+    } else {
+      refillsRemaining = n;
+    }
+  }
+  const pharmacyPhone = values.pharmacyPhone.trim();
+  if (pharmacyPhone !== '' && !isValidPhone(pharmacyPhone)) {
+    errors.pharmacyPhone = 'Enter a phone number like (555) 123-4567.';
+  }
+
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 
   return {
@@ -223,6 +251,10 @@ export function validateForm(values: FormValues): ValidationResult {
         unit: inventoryUnit,
         refillThreshold,
         refillThresholdUnit: refillThreshold === null ? null : values.refillThresholdUnit,
+        refillsRemaining,
+        pharmacyName: values.pharmacyName.trim() || null,
+        pharmacyPhone: pharmacyPhone || null,
+        prescriptionNumber: values.prescriptionNumber.trim() || null,
       },
     },
   };

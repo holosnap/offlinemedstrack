@@ -59,7 +59,11 @@ export async function handleNotificationResponse(
 ): Promise<ResponseOutcome> {
   const { port } = deps;
   const request = response.notification.request;
-  const dose = readDoseRef(request.content.data);
+  const data = request.content.data;
+  if (data?.kind === 'refill' && typeof data.medicationId === 'number') {
+    return { type: 'open', medicationId: data.medicationId };
+  }
+  const dose = readDoseRef(data);
   if (!dose) return { type: 'ignored' };
 
   const status: DoseStatus | null =

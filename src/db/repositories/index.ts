@@ -4,3 +4,4 @@ export * from './doseLogs';
 export * from './inventory';
 export * from './refillEvents';
 export * from './settings';
+export * from './refillAlerts';

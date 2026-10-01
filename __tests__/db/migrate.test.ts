@@ -21,6 +21,7 @@ describe('migrations', () => {
       'dose_logs',
       'inventory',
       'medications',
+      'refill_alerts',
       'refill_events',
       'schedules',
       'settings',

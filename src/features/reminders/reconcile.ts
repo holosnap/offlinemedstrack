@@ -1,10 +1,22 @@
 import {
+  EMPTY_REFILL_ALERT,
+  getInventory,
   listActiveSchedulesInRange,
   listDoseLogsInRange,
   listMedications,
+  listRefillAlerts,
+  listSchedulesForMedication,
+  saveRefillAlert,
 } from '@/db/repositories';
 import type { Medication } from '@/db/models';
 import type { Database } from '@/db/types';
+import { buildSummary } from '@/features/medications/summary';
+import {
+  planRefillReminders,
+  REFILL_ID_PREFIX,
+  type PlannedRefillReminder,
+} from '@/features/refills/planner';
+import { loadAverageUsage } from '@/features/refills/usage';
 import { formatQuantity } from '@/lib/format';
 import { addDays, localDateOf } from '@/lib/time';
 import { DOSE_ID_PREFIX, MAX_SCHEDULED_DOSES, SNOOZE_ID_PREFIX, WINDOW_DAYS } from './constants';
@@ -26,13 +38,72 @@ export interface ReconcileResult {
   kept: number;
 }
 
+/** iOS keeps at most 64 pending local notifications; stay under it with room for snoozes. */
+const MAX_PENDING_TOTAL = 62;
+
 export function notificationContent(medication: Medication): { title: string; body: string } {
   const strength = `${formatQuantity(medication.dosageAmount)} ${medication.dosageUnit}`;
   const extra = medication.instructions ? ` · ${medication.instructions}` : '';
   return { title: `Time for ${medication.name}`, body: `${strength}${extra}` };
 }
 
-async function plan(deps: ReconcileDeps, now: Date): Promise<Map<string, PlannedDose>> {
+/** A notification that should be pending, whatever its kind. */
+interface Desired {
+  id: string;
+  title: string;
+  body: string;
+  fireAt: Date;
+  data: Record<string, unknown>;
+}
+
+const contentKey = (title: string, body: string) => `${title}\n${body}`;
+
+/**
+ * Works out each active medication's refill reminders from its supply, and stores the episode
+ * state that keeps them from repeating (see `planRefillReminders`).
+ */
+async function planRefills(db: Database, now: Date): Promise<PlannedRefillReminder[]> {
+  const medications = await listMedications(db, { activeOnly: true });
+  const usage = await loadAverageUsage(db, medications, now);
+  const states = await listRefillAlerts(db);
+  const reminders: PlannedRefillReminder[] = [];
+
+  for (const medication of medications) {
+    const inventory = await getInventory(db, medication.id);
+    const previous = states.get(medication.id) ?? EMPTY_REFILL_ALERT;
+    if (!inventory) {
+      if (states.has(medication.id)) await saveRefillAlert(db, medication.id, EMPTY_REFILL_ALERT);
+      continue;
+    }
+    const schedules = await listSchedulesForMedication(db, medication.id);
+    const summary = buildSummary(medication, schedules, inventory, now, usage.get(medication.id));
+    const plan = planRefillReminders(
+      {
+        medicationId: medication.id,
+        name: medication.name,
+        quantity: inventory.currentQuantity,
+        low: summary.lowSupply || summary.supplyStatus === 'out',
+        refillsRemaining: inventory.refillsRemaining,
+        pharmacyName: inventory.pharmacyName,
+        state: previous,
+      },
+      now,
+    );
+    const changed =
+      plan.state.lowSince !== previous.lowSince ||
+      plan.state.lowQuantity !== previous.lowQuantity ||
+      plan.state.doctorSince !== previous.doctorSince;
+    if (changed) await saveRefillAlert(db, medication.id, plan.state);
+    reminders.push(...plan.reminders);
+  }
+  return reminders;
+}
+
+async function planDoseReminders(
+  deps: ReconcileDeps,
+  now: Date,
+  maxDoses: number,
+): Promise<PlannedDose[]> {
   const { db } = deps;
   const windowDays = deps.windowDays ?? WINDOW_DAYS;
   const today = localDateOf(now);
@@ -44,14 +115,7 @@ async function plan(deps: ReconcileDeps, now: Date): Promise<Map<string, Planned
       .filter((l) => l.status === 'taken' || l.status === 'skipped')
       .map((l) => doseKey(l.medicationId, l.scheduledFor)),
   );
-  const doses = planDoses({
-    schedules,
-    now,
-    resolved,
-    windowDays,
-    maxDoses: deps.maxDoses ?? MAX_SCHEDULED_DOSES,
-  });
-  return new Map(doses.map((d) => [d.id, d]));
+  return planDoses({ schedules, now, resolved, windowDays, maxDoses });
 }
 
 async function doReconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
@@ -60,58 +124,87 @@ async function doReconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
   const permission = await port.getPermissionState();
   const pending = await port.listPending();
   const ours = pending.filter(
-    (p) => p.identifier.startsWith(DOSE_ID_PREFIX) || p.identifier.startsWith(SNOOZE_ID_PREFIX),
+    (p) =>
+      p.identifier.startsWith(DOSE_ID_PREFIX) ||
+      p.identifier.startsWith(SNOOZE_ID_PREFIX) ||
+      p.identifier.startsWith(REFILL_ID_PREFIX),
   );
 
-  const desired = permission === 'granted' ? await plan(deps, now) : new Map<string, PlannedDose>();
+  // Refill state is tracked whether or not notifications are allowed.
+  const refills = await planRefills(db, now);
   const medications = new Map(
     (await listMedications(db, { activeOnly: true })).map((m) => [m.id, m]),
   );
 
-  const content = (dose: PlannedDose) => {
-    const medication = medications.get(dose.medicationId);
-    return medication ? notificationContent(medication) : null;
-  };
+  const desired = new Map<string, Desired>();
+  if (permission === 'granted') {
+    for (const r of refills) {
+      desired.set(r.id, {
+        id: r.id,
+        title: r.title,
+        body: r.body,
+        fireAt: r.fireAt,
+        data: {
+          kind: 'refill',
+          medicationId: r.medicationId,
+          content: contentKey(r.title, r.body),
+        },
+      });
+    }
+    const maxDoses = Math.max(
+      0,
+      Math.min(deps.maxDoses ?? MAX_SCHEDULED_DOSES, MAX_PENDING_TOTAL - desired.size),
+    );
+    for (const dose of await planDoseReminders(deps, now, maxDoses)) {
+      const medication = medications.get(dose.medicationId);
+      if (!medication) continue;
+      const { title, body } = notificationContent(medication);
+      const data: DoseNotificationData = {
+        medicationId: dose.medicationId,
+        scheduledFor: dose.scheduledFor,
+        quantity: dose.quantity,
+        content: contentKey(title, body),
+      };
+      desired.set(dose.id, {
+        id: dose.id,
+        title,
+        body,
+        fireAt: new Date(dose.scheduledFor),
+        data,
+      });
+    }
+  }
 
   const result: ReconcileResult = { permission, scheduled: 0, cancelled: 0, kept: 0 };
-  const stillPending = new Map<string, string | null>();
+  const stillPending = new Set<string>();
 
   for (const p of ours) {
-    const dose = desired.get(p.identifier);
     let keep: boolean;
     if (p.identifier.startsWith(SNOOZE_ID_PREFIX)) {
       // A snooze lives until it fires, as long as its medication is still active and reminders on.
       const medicationId = medicationIdOfSnooze(p.identifier);
       keep = permission === 'granted' && medicationId !== null && medications.has(medicationId);
     } else {
-      const wanted = dose ? content(dose) : null;
-      keep = wanted !== null && p.content === `${wanted.title}\n${wanted.body}`;
+      const wanted = desired.get(p.identifier);
+      keep = wanted !== undefined && p.content === contentKey(wanted.title, wanted.body);
     }
     if (keep) {
       result.kept++;
-      stillPending.set(p.identifier, p.content);
+      stillPending.add(p.identifier);
     } else {
       await port.cancel(p.identifier);
       result.cancelled++;
     }
   }
 
-  for (const dose of desired.values()) {
-    if (stillPending.has(dose.id)) continue;
-    const text = content(dose);
-    if (!text) continue;
-    const data: DoseNotificationData = {
-      medicationId: dose.medicationId,
-      scheduledFor: dose.scheduledFor,
-      quantity: dose.quantity,
-      content: `${text.title}\n${text.body}`,
-    };
+  for (const want of desired.values()) {
+    if (stillPending.has(want.id)) continue;
     await port.schedule({
-      identifier: dose.id,
-      title: text.title,
-      body: text.body,
-      fireAt: new Date(dose.scheduledFor),
-      data,
+      identifier: want.id,
+      title: want.title,
+      body: want.body,
+      fireAt: want.fireAt,
+      data: want.data,
     });
     result.scheduled++;
   }
@@ -121,10 +214,11 @@ async function doReconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
 let tail: Promise<unknown> = Promise.resolve();
 
 /**
- * The single place that schedules and cancels dose notifications. It derives the desired set from
- * the database (active schedules, a rolling window, minus doses already taken/skipped), diffs it
- * against what the OS has pending, cancels the stale ones and schedules the missing ones.
- * Idempotent, and calls are serialized so overlapping triggers can't double-schedule.
+ * The single place that schedules and cancels notifications (dose and refill reminders). It
+ * derives the desired set from the database (active schedules, a rolling window, minus doses
+ * already taken/skipped, plus bounded refill reminders), diffs it against what the OS has pending,
+ * cancels the stale ones and schedules the missing ones. Idempotent, and calls are serialized so
+ * overlapping triggers can't double-schedule.
  */
 export function reconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
   const run = tail.then(() => doReconcile(deps));

@@ -95,3 +95,18 @@ export function formatClock(value: Date | UtcIso): string {
   const date = typeof value === 'string' ? new Date(value) : value;
   return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
+
+const PHONE_CHARS = /^\+?[\d\s().-]+$/;
+
+/** A plausible phone number: digits with optional `+`, spaces, `-`, `.` and parentheses. */
+export function isValidPhone(text: string): boolean {
+  const t = text.trim();
+  return PHONE_CHARS.test(t) && t.replace(/\D/g, '').length >= 3;
+}
+
+/** `tel:` link for a stored phone number, or null if it isn't a usable number. */
+export function phoneToTelUrl(text: string | null | undefined): string | null {
+  if (!text || !isValidPhone(text)) return null;
+  const t = text.trim();
+  return `tel:${t.startsWith('+') ? '+' : ''}${t.replace(/\D/g, '')}`;
+}

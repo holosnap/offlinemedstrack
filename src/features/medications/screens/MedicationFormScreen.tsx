@@ -375,6 +375,36 @@ export function MedicationFormScreen({ medicationId }: MedicationFormScreenProps
           onChange={(v) => set('refillThresholdUnit', v)}
         />
       </Card>
+
+      <Card title="Refills and pharmacy (optional)">
+        <TextField
+          label="Refills left on the prescription"
+          hint="Leave empty if you don't track this. You'll be reminded to contact your doctor at 0"
+          value={values.refillsRemaining}
+          onChangeText={(v) => set('refillsRemaining', v)}
+          error={errors.refillsRemaining}
+          keyboardType="number-pad"
+        />
+        <TextField
+          label="Pharmacy name"
+          value={values.pharmacyName}
+          onChangeText={(v) => set('pharmacyName', v)}
+        />
+        <TextField
+          label="Pharmacy phone"
+          hint="Used for the Call pharmacy button"
+          value={values.pharmacyPhone}
+          onChangeText={(v) => set('pharmacyPhone', v)}
+          error={errors.pharmacyPhone}
+          keyboardType="phone-pad"
+        />
+        <TextField
+          label="Prescription number"
+          value={values.prescriptionNumber}
+          onChangeText={(v) => set('prescriptionNumber', v)}
+          autoCapitalize="none"
+        />
+      </Card>
     </Screen>
   );
 }

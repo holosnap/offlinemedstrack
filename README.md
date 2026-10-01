@@ -52,6 +52,12 @@ The home tab lists today's doses grouped by time of day (or exact time, see Sett
 
 Logging a dose as taken reduces your supply by the quantity taken; skipped and missed doses do not, and undoing a taken dose gives the supply back.
 
+## Refill tracking
+
+Supply is projected from your schedule: weekday-only and every-N-days schedules are counted exactly, and as-needed medications use your average over the last 30 days. The medication list shows a supply indicator, the detail screen shows the estimated run-out date, and the **Refills** tab lists every medication by soonest run-out date.
+
+When supply reaches your refill threshold you get a reminder at 9:00 the next morning, and one more two days later if it is still unresolved (never more than two per low-supply period). If a prescription has no refills left you get a single reminder to contact your doctor. **Record refill** adds the quantity, the date and an optional note, uses up one remaining refill, and keeps a history. **Call pharmacy** dials the number stored with the medication (add it under Edit).
+
 ## Dose reminders
 
 Reminders are local notifications; nothing leaves the device. Use a **development build** to test them (`npx expo run:android` / `run:ios`); Expo Go is unreliable for notifications.

@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText, Badge, minTouchTarget, radius, spacing, usePalette } from '@/components';
 import { formatDateTime, formatQuantity } from '@/lib/format';
 import type { MedicationSummary } from '../summary';
-import { LowSupplyBadge } from './LowSupplyBadge';
+import { SupplyBadge } from '@/features/refills/components/SupplyBadge';
+import { supplyIndicator } from '@/features/refills/format';
 
 export function nextDoseLabel(summary: MedicationSummary, now: Date = new Date()): string {
   if (!summary.medication.active) return 'Paused';
@@ -29,9 +30,10 @@ interface MedicationCardProps {
 export function MedicationCard({ summary, onPress, now }: MedicationCardProps) {
   const palette = usePalette();
   const { medication, lowSupply } = summary;
+  const supply = summary.inventory ? supplyIndicator(summary) : null;
   const dose = dosageLabel(summary);
   const next = nextDoseLabel(summary, now);
-  const spoken = [medication.name, dose, next, lowSupply ? 'Low supply' : null]
+  const spoken = [medication.name, dose, next, supply, lowSupply ? 'Low supply' : null]
     .filter(Boolean)
     .join('. ');
   return (
@@ -50,9 +52,10 @@ export function MedicationCard({ summary, onPress, now }: MedicationCardProps) {
       </AppText>
       <AppText muted>{dose}</AppText>
       <AppText>{next}</AppText>
+      {supply ? <AppText muted>{`Supply: ${supply}`}</AppText> : null}
       <View style={styles.badges}>
         {!medication.active ? <Badge label="Paused" /> : null}
-        {lowSupply ? <LowSupplyBadge /> : null}
+        <SupplyBadge status={summary.supplyStatus} />
       </View>
     </Pressable>
   );

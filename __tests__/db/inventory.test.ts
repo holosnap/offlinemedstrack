@@ -129,23 +129,27 @@ describe('inventory repository', () => {
       await schedule(low); // 2 per day
       await schedule(fine);
       const base = { unit: 'tablets', refillThreshold: 7, refillThresholdUnit: 'days' } as const;
-      await createInventory(db, { ...base, medicationId: low, currentQuantity: 14 }); // 7 days
-      await createInventory(db, { ...base, medicationId: fine, currentQuantity: 15 }); // 7.5 days
+      await createInventory(db, { ...base, medicationId: low, currentQuantity: 14 }); // out Oct 8
+      await createInventory(db, { ...base, medicationId: fine, currentQuantity: 17 }); // out Oct 9
       const result = await listLowStock(db, now);
       expect(result.map((r) => [r.inventory.medicationId, r.daysOfSupply])).toEqual([[low, 7]]);
     });
 
     it('accounts for weekday and interval frequency', async () => {
       const weekly = await mkMed('weekly');
-      await schedule(weekly, { type: 'weekdays', daysOfWeek: [1], times: ['08:00'] }); // 1/7 per day
+      // Mondays only; Oct 1 2026 is a Thursday, so the doses are Oct 5, 12, 19...
+      await schedule(weekly, { type: 'weekdays', daysOfWeek: [1], times: ['08:00'] });
       await createInventory(db, {
         medicationId: weekly,
-        currentQuantity: 2,
+        currentQuantity: 1,
         unit: 'tablets',
         refillThreshold: 14,
         refillThresholdUnit: 'days',
       });
-      expect((await listLowStock(db, now))[0].daysOfSupply).toBeCloseTo(14);
+      // One tablet covers Oct 5; the Oct 12 dose is the first one it can't.
+      expect((await listLowStock(db, now))[0].daysOfSupply).toBe(11);
+      await updateInventory(db, weekly, { currentQuantity: 2 }); // runs out Oct 19, 18 days away
+      expect(await listLowStock(db, now)).toEqual([]);
     });
 
     it('flags count-based thresholds even without a schedule', async () => {

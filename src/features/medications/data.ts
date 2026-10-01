@@ -7,13 +7,15 @@ import {
   getMedication,
   listMedications,
   listRecentDoseLogs,
+  listRefillEventsForMedication,
   listSchedulesForMedication,
   setMedicationActive,
   updateInventory,
   updateMedication,
   updateSchedule,
 } from '@/db/repositories';
-import type { DoseLog, Medication } from '@/db/models';
+import type { DoseLog, Medication, RefillEvent } from '@/db/models';
+import { loadAverageUsage } from '@/features/refills/usage';
 import { syncReminders } from '@/features/reminders/sync';
 import type { Database } from '@/db/types';
 import { buildSummary, type MedicationSummary } from './summary';
@@ -23,18 +25,20 @@ export const HISTORY_LIMIT = 15;
 
 export interface MedicationDetail extends MedicationSummary {
   history: DoseLog[];
+  refills: RefillEvent[];
 }
 
 async function summarize(
   db: Database,
   medication: Medication,
   now: Date,
+  usage: ReadonlyMap<number, number>,
 ): Promise<MedicationSummary> {
   const [schedules, inventory] = await Promise.all([
     listSchedulesForMedication(db, medication.id),
     getInventory(db, medication.id),
   ]);
-  return buildSummary(medication, schedules, inventory, now);
+  return buildSummary(medication, schedules, inventory, now, usage.get(medication.id) ?? 0);
 }
 
 /** Every medication (active first, then paused; each group by name) with its derived status. */
@@ -43,7 +47,8 @@ export async function loadMedicationSummaries(
   now: Date = new Date(),
 ): Promise<MedicationSummary[]> {
   const medications = await listMedications(db);
-  const summaries = await Promise.all(medications.map((m) => summarize(db, m, now)));
+  const usage = await loadAverageUsage(db, medications, now);
+  const summaries = await Promise.all(medications.map((m) => summarize(db, m, now, usage)));
   return summaries.sort((a, b) => Number(b.medication.active) - Number(a.medication.active));
 }
 
@@ -54,11 +59,13 @@ export async function loadMedicationDetail(
 ): Promise<MedicationDetail | null> {
   const medication = await getMedication(db, id);
   if (!medication) return null;
-  const [summary, history] = await Promise.all([
-    summarize(db, medication, now),
+  const [usage, history, refills] = await Promise.all([
+    loadAverageUsage(db, [medication], now),
     listRecentDoseLogs(db, id, HISTORY_LIMIT),
+    listRefillEventsForMedication(db, id),
   ]);
-  return { ...summary, history };
+  const summary = await summarize(db, medication, now, usage);
+  return { ...summary, history, refills };
 }
 
 /**

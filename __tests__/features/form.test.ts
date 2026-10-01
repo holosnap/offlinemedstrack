@@ -41,9 +41,38 @@ describe('validateForm', () => {
           unit: 'tablets',
           refillThreshold: 7,
           refillThresholdUnit: 'days',
+          refillsRemaining: null,
+          pharmacyName: null,
+          pharmacyPhone: null,
+          prescriptionNumber: null,
         },
       },
     });
+  });
+
+  it('normalizes the refill and pharmacy fields', () => {
+    const result = validateForm(
+      valid({
+        refillsRemaining: ' 2 ',
+        pharmacyName: ' Corner Pharmacy ',
+        pharmacyPhone: ' (555) 123-4567 ',
+        prescriptionNumber: ' RX-1 ',
+      }),
+    );
+    expect(result.ok && result.value.inventory).toMatchObject({
+      refillsRemaining: 2,
+      pharmacyName: 'Corner Pharmacy',
+      pharmacyPhone: '(555) 123-4567',
+      prescriptionNumber: 'RX-1',
+    });
+    expect(validateForm(valid({ refillsRemaining: '0' })).ok).toBe(true);
+  });
+
+  it('rejects bad refill counts and phone numbers', () => {
+    expect(errorsOf(valid({ refillsRemaining: '1.5' })).refillsRemaining).toBeDefined();
+    expect(errorsOf(valid({ refillsRemaining: 'two' })).refillsRemaining).toBeDefined();
+    expect(errorsOf(valid({ pharmacyPhone: 'call me' })).pharmacyPhone).toBeDefined();
+    expect(errorsOf(valid({ pharmacyPhone: '12' })).pharmacyPhone).toBeDefined();
   });
 
   it('rejects empty names', () => {
