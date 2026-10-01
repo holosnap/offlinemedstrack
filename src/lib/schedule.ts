@@ -1,5 +1,14 @@
 import type { Schedule } from '@/db/models';
-import { dayOfWeek, diffDays, type LocalDate, type LocalTime } from './time';
+import {
+  addDays,
+  dayOfWeek,
+  diffDays,
+  localDateOf,
+  localToUtc,
+  type LocalDate,
+  type LocalTime,
+  type UtcIso,
+} from './time';
 
 export type ScheduleRule = Pick<
   Schedule,
@@ -43,4 +52,29 @@ export function averageDailyQuantity(schedule: ScheduleRule): number {
     case 'as_needed':
       return 0;
   }
+}
+
+/**
+ * The first dose strictly after `now` across the given schedules, or null if none occurs within
+ * `horizonDays` (as-needed schedules never produce one).
+ */
+export function nextDoseAfter(
+  schedules: readonly ScheduleRule[],
+  now: Date,
+  horizonDays = 400,
+): UtcIso | null {
+  const after = now.toISOString();
+  const today = localDateOf(now);
+  for (let offset = 0; offset <= horizonDays; offset++) {
+    const date = addDays(today, offset);
+    let earliest: UtcIso | null = null;
+    for (const schedule of schedules) {
+      for (const time of timesOn(schedule, date)) {
+        const instant = localToUtc(date, time);
+        if (instant > after && (earliest === null || instant < earliest)) earliest = instant;
+      }
+    }
+    if (earliest !== null) return earliest;
+  }
+  return null;
 }

@@ -56,6 +56,26 @@ export function assertLocalTime(value: string, label = 'time'): LocalTime {
   return value;
 }
 
+/**
+ * Parses what a person types into a time field: `8`, `8:30`, `8:30 pm`, `8pm`, `20:30`.
+ * Without am/pm the hour is read as 24-hour. Returns `null` when it isn't a valid time.
+ */
+export function parseTimeInput(text: string): LocalTime | null {
+  const m = /^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m?\.?$|^(\d{1,2})(?::(\d{2}))?$/i.exec(text.trim());
+  if (!m) return null;
+  const meridiem = m[3]?.toLowerCase();
+  let hour = Number(m[1] ?? m[4]);
+  const minute = Number(m[2] ?? m[5] ?? 0);
+  if (minute > 59) return null;
+  if (meridiem) {
+    if (hour < 1 || hour > 12) return null;
+    hour = (hour % 12) + (meridiem === 'p' ? 12 : 0);
+  } else if (hour > 23) {
+    return null;
+  }
+  return `${pad(hour)}:${pad(minute)}`;
+}
+
 /** The calendar date of `date` in the device's local time zone. */
 export function localDateOf(date: Date): LocalDate {
   return `${pad(date.getFullYear(), 4)}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;

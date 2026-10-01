@@ -2,7 +2,7 @@ import { NotFoundError } from '../errors';
 import { REFILL_THRESHOLD_UNITS, type Inventory, type RefillThresholdUnit } from '../models';
 import { buildSet } from '../sql';
 import type { Database } from '../types';
-import { averageDailyQuantity } from '@/lib/schedule';
+import { daysOfSupply as estimateDays, dailyUsage, isLowSupply } from '@/lib/supply';
 import { localDateOf, nowUtc } from '@/lib/time';
 import { listActiveSchedulesInRange } from './schedules';
 
@@ -177,22 +177,15 @@ export async function listLowStock(db: Database, now: Date = new Date()): Promis
   );
   const today = localDateOf(now);
   const schedules = await listActiveSchedulesInRange(db, today, today);
-  const dailyUsage = new Map<number, number>();
-  for (const s of schedules) {
-    dailyUsage.set(s.medicationId, (dailyUsage.get(s.medicationId) ?? 0) + averageDailyQuantity(s));
-  }
-
   const low: LowStockItem[] = [];
   for (const row of rows) {
     const inventory = toInventory(row);
-    const usage = dailyUsage.get(inventory.medicationId) ?? 0;
-    const daysOfSupply = usage > 0 ? inventory.currentQuantity / usage : null;
-    const threshold = inventory.refillThreshold ?? 0;
-    const isLow =
-      inventory.refillThresholdUnit === 'count'
-        ? inventory.currentQuantity <= threshold
-        : daysOfSupply !== null && daysOfSupply <= threshold;
-    if (isLow) low.push({ inventory, daysOfSupply });
+    const usage = dailyUsage(
+      schedules.filter((s) => s.medicationId === inventory.medicationId),
+      today,
+    );
+    const daysOfSupply = estimateDays(inventory.currentQuantity, usage);
+    if (isLowSupply(inventory, daysOfSupply)) low.push({ inventory, daysOfSupply });
   }
   return low;
 }

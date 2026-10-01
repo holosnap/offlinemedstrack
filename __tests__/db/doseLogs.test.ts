@@ -4,6 +4,7 @@ import {
   deleteDoseLog,
   getDoseLog,
   listDoseLogsInRange,
+  listRecentDoseLogs,
   listScheduledDoses,
   listTodaysDoses,
   recordDose,
@@ -109,6 +110,31 @@ describe('dose logs repository', () => {
       expect(
         await listDoseLogsInRange(db, '2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z'),
       ).toHaveLength(1);
+    });
+  });
+
+  describe('listRecentDoseLogs', () => {
+    it('returns the newest logs for one medication, limited', async () => {
+      const other = (
+        await createMedication(db, { name: 'B', dosageAmount: 1, dosageUnit: 'mg', form: 'tablet' })
+      ).id;
+      for (const day of ['01', '02', '03']) {
+        await createDoseLog(db, {
+          medicationId: medId,
+          scheduledFor: `2026-09-${day}T12:00:00Z`,
+          status: 'taken',
+        });
+      }
+      await createDoseLog(db, {
+        medicationId: other,
+        scheduledFor: '2026-09-04T12:00:00Z',
+        status: 'taken',
+      });
+      const logs = await listRecentDoseLogs(db, medId, 2);
+      expect(logs.map((l) => l.scheduledFor)).toEqual([
+        '2026-09-03T12:00:00.000Z',
+        '2026-09-02T12:00:00.000Z',
+      ]);
     });
   });
 

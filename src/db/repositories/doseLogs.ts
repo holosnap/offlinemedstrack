@@ -178,6 +178,19 @@ export async function listDoseLogsInRange(
   return rows.map(toDoseLog);
 }
 
+/** The most recent logs for a medication (by scheduled time), newest first. */
+export async function listRecentDoseLogs(
+  db: Database,
+  medicationId: number,
+  limit = 20,
+): Promise<DoseLog[]> {
+  const rows = await db.getAllAsync<DoseLogRow>(
+    'SELECT * FROM dose_logs WHERE medication_id = ? ORDER BY scheduled_for DESC, id DESC LIMIT ?',
+    [medicationId, limit],
+  );
+  return rows.map(toDoseLog);
+}
+
 export async function updateDoseLog(
   db: Database,
   id: number,
