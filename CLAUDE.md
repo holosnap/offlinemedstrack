@@ -24,6 +24,14 @@ __tests__/      tests (do not put tests under app/, they would become routes)
 
 Path alias: `@/*` maps to `src/*` (e.g. `import { db } from '@/db/client'`).
 
+## Today screen and dose logging (`src/features/today`, `doses`, `settings`)
+
+- Tabs live in `app/(tabs)`: Today (home, `index`), Medications (`meds`), Settings. Detail/edit/new routes are Stack screens above the tabs.
+- **All dose state changes go through `setDoseState` (`src/features/doses/state.ts`)** (via `takeDose`/`skipDose`/`snoozeDose`/`logAsNeededDose`/`undoDose` in `doseActions.ts`). It adjusts inventory in the same transaction: only a _taken_ dose consumes supply (by the logged quantity); skipped, missed and snoozed never do; changing or undoing a taken dose gives it back. Never call `recordDose` or `adjustInventoryQuantity` directly for logging.
+- `timeline.ts` is pure: builds the day's doses, effective status (upcoming/overdue/snoozed/taken/skipped/missed), grouping, and the as-needed list. `missed.ts` persists "missed" once the configurable window (setting `missedAfterMinutes`, default 120) elapses; it runs whenever Today loads, on a 60 s refresh, and on foreground. Doses scheduled before a schedule was last edited are never marked missed.
+- As-needed doses are logged with `scheduledFor` = the time taken (no schedule slot).
+- Settings are key/value rows (`settings` table, migration 002); use `getSettings`/`updateSettings` in `src/features/settings/settings.ts`.
+
 ## Dose reminders (`src/features/reminders`)
 
 - `reconcile()` in `reconcile.ts` is the **only** code that schedules or cancels dose notifications. It derives the desired set from the DB (active schedules, rolling 7-day window, minus doses already taken/skipped), diffs against what the OS has pending, cancels stale and schedules missing. Never schedule or cancel notifications anywhere else.

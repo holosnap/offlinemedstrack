@@ -46,6 +46,12 @@ __tests__/      tests
 
 See [CLAUDE.md](./CLAUDE.md) for coding conventions.
 
+## Today screen
+
+The home tab lists today's doses grouped by time of day (or exact time, see Settings). Each dose has a one-tap **Taken** button, plus **Skip**, **Snooze 10 min** and **Different time or quantity** under _More options_. Overdue doses are highlighted and labelled; a dose with no action after the missed window (default 2 hours, configurable in Settings) is recorded as **Missed**. As-needed medications have their own section for logging a dose at any time. Every change can be undone from the bar that appears after it or from the dose itself.
+
+Logging a dose as taken reduces your supply by the quantity taken; skipped and missed doses do not, and undoing a taken dose gives the supply back.
+
 ## Dose reminders
 
 Reminders are local notifications; nothing leaves the device. Use a **development build** to test them (`npx expo run:android` / `run:ios`); Expo Go is unreliable for notifications.

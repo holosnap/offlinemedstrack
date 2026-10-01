@@ -15,7 +15,7 @@ export default function RootLayout() {
           headerBackButtonDisplayMode: 'minimal',
         }}
       >
-        <Stack.Screen name="index" options={{ title: 'My medications' }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="reminders/permission" options={{ title: 'Reminders' }} />
       </Stack>
     </DatabaseProvider>

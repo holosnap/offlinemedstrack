@@ -23,6 +23,7 @@ describe('migrations', () => {
       'medications',
       'refill_events',
       'schedules',
+      'settings',
     ]);
   });
 

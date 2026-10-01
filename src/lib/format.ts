@@ -89,3 +89,9 @@ export function describeSchedule(schedule: ScheduleShape): string {
       return 'Only when needed';
   }
 }
+
+/** "8:05 AM" for an instant, in the device's time zone. */
+export function formatClock(value: Date | UtcIso): string {
+  const date = typeof value === 'string' ? new Date(value) : value;
+  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
