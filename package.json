@@ -21,6 +21,7 @@
   "devDependencies": {
     "@testing-library/react-native": "^14.0.1",
     "@types/jest": "^29.5.14",
+    "@types/node": "^22.20.4",
     "@types/react": "~19.2.2",
     "@types/react-test-renderer": "^19.3.0",
     "eslint": "^9.39.5",
