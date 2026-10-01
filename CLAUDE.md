@@ -24,6 +24,14 @@ __tests__/      tests (do not put tests under app/, they would become routes)
 
 Path alias: `@/*` maps to `src/*` (e.g. `import { db } from '@/db/client'`).
 
+## Dose reminders (`src/features/reminders`)
+
+- `reconcile()` in `reconcile.ts` is the **only** code that schedules or cancels dose notifications. It derives the desired set from the DB (active schedules, rolling 7-day window, minus doses already taken/skipped), diffs against what the OS has pending, cancels stale and schedules missing. Never schedule or cancel notifications anywhere else.
+- Call `syncReminders(db)` after any change to medications, schedules, or dose logs; it is best-effort and never throws. It also runs on launch and when the app returns to the foreground (`useReminderLifecycle`).
+- `planner.ts` is pure (no Expo imports); doses are computed from local wall-clock times in the device's current zone, so a zone/DST change is fixed by the next reconcile. Notification ids are deterministic: `dose:{medId}:{scheduledFor}` and `snooze:{medId}:{scheduledFor}`.
+- `actions.ts` handles Taken / Snooze / Skip and is idempotent. Expo is reached only through `NotificationsPort` (`ports.ts`, adapter in `expoPort.ts`), so logic is tested with `__tests__/helpers/fakePort.ts`.
+- iOS allows 64 pending notifications; `MAX_SCHEDULED_DOSES` (56) leaves headroom for snoozes.
+
 ## Conventions
 
 - TypeScript `strict` is on. **No `any`** (enforced by ESLint); use `unknown` and narrow, or proper types.
@@ -33,6 +41,7 @@ Path alias: `@/*` maps to `src/*` (e.g. `import { db } from '@/db/client'`).
 - Schema changes require a new migration, never an edit to a shipped one.
 - Add packages with `npx expo install <pkg>` so versions match the SDK (if the Expo API is unreachable, use the versions in `node_modules/expo/bundledNativeModules.json` with `npm install`).
 - Format with Prettier (single quotes, trailing commas, 100 cols). Run lint, typecheck, and tests before finishing a task.
+- Tests that change the time zone use `withTimeZone` from `__tests__/helpers/fakePort.ts` (Jest's `process.env` is sandboxed; plain assignment has no effect).
 - Write tests with React Native Testing Library; note that its `render` and `fireEvent` are async in this version, so `await` them.
 
 ## Commands

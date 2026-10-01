@@ -45,3 +45,19 @@ __tests__/      tests
 ```
 
 See [CLAUDE.md](./CLAUDE.md) for coding conventions.
+
+## Dose reminders
+
+Reminders are local notifications; nothing leaves the device. Use a **development build** to test them (`npx expo run:android` / `run:ios`); Expo Go is unreliable for notifications.
+
+- The app explains why it needs notification permission before showing the system prompt. If permission is denied, the medication list shows how to enable it later in the system Settings.
+- A rolling 7-day window of doses is scheduled (iOS allows only 64 pending notifications) and refreshed on launch, on returning to the foreground, and after any medication or schedule change.
+- Notification buttons: **Taken**, **Snooze 10 min**, **Skip**. On Android they are recorded without opening the app. On iOS they open the app, because iOS does not run app code for a button tap when the app has been force-quit.
+- Doses fire at the wall-clock time you chose, including across daylight saving changes. If the device time zone changes while the app is closed, reminders are corrected the next time the app is opened.
+
+### Manual test checklist (needs a device)
+
+1. Add a medication: the explanation screen appears, then the system prompt.
+2. Deny the prompt: the list shows "Reminders are off" with an **Open Settings** button.
+3. Allow, set a dose a couple of minutes ahead: tap Taken / Snooze / Skip from the notification and check the medication's history.
+4. Change the device time zone, reopen the app: reminders move to the same local times.

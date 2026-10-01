@@ -12,6 +12,7 @@ import {
 } from '@/db/repositories';
 import type { Database } from '@/db/types';
 import { DatabaseProvider } from '@/db/DatabaseProvider';
+import { getPermissionState } from '@/features/reminders/permissions';
 import { MedicationDetailScreen } from '@/features/medications/screens/MedicationDetailScreen';
 import { MedicationFormScreen } from '@/features/medications/screens/MedicationFormScreen';
 import { MedicationListScreen } from '@/features/medications/screens/MedicationListScreen';
@@ -28,6 +29,9 @@ jest.mock('expo-router', () => {
     Stack: { Screen: () => null },
   };
 });
+
+jest.mock('@/features/reminders/sync');
+jest.mock('@/features/reminders/permissions');
 
 // The first run compiles a lot of RN modules; don't let a cold cache fail a test.
 jest.setTimeout(20_000);
@@ -64,6 +68,7 @@ async function seed(name: string, over: { quantity?: number; threshold?: number 
 
 beforeEach(async () => {
   jest.clearAllMocks();
+  jest.mocked(getPermissionState).mockResolvedValue('granted');
   db = await createTestDb();
 });
 

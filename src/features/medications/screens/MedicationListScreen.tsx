@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { FlatList, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, spacing, usePalette } from '@/components';
+import { ReminderStatusBanner } from '@/features/reminders/components/ReminderStatusBanner';
 import { loadMedicationSummaries } from '../data';
 import { MedicationCard } from '../components/MedicationCard';
 import { useLoad } from '../useLoad';
@@ -48,6 +49,7 @@ export function MedicationListScreen() {
         data={data}
         keyExtractor={(item) => String(item.medication.id)}
         contentContainerStyle={styles.list}
+        ListHeaderComponent={<ReminderStatusBanner />}
         renderItem={({ item }) => (
           <MedicationCard
             summary={item}

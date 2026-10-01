@@ -21,6 +21,7 @@ import {
   type ScheduleType,
 } from '@/db/models';
 import { DAY_ABBREVIATIONS, DAY_NAMES } from '@/lib/format';
+import { getPermissionState } from '@/features/reminders/permissions';
 import { loadMedicationForEdit, saveMedication } from '../data';
 import {
   FORM_UNIT_DEFAULTS,
@@ -137,6 +138,14 @@ export function MedicationFormScreen({ medicationId }: MedicationFormScreenProps
     try {
       const db = await getDatabase();
       await saveMedication(db, medicationId ?? null, result.value);
+      // First reminder-worthy medication: explain notifications before asking for permission.
+      if (
+        result.value.schedule.type !== 'as_needed' &&
+        (await getPermissionState()) === 'undetermined'
+      ) {
+        router.replace('/reminders/permission');
+        return;
+      }
       router.back();
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : 'Something went wrong.');

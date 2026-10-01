@@ -14,6 +14,7 @@ import {
   updateSchedule,
 } from '@/db/repositories';
 import type { DoseLog, Medication } from '@/db/models';
+import { syncReminders } from '@/features/reminders/sync';
 import type { Database } from '@/db/types';
 import { buildSummary, type MedicationSummary } from './summary';
 import type { ValidatedMedication } from './form';
@@ -84,15 +85,18 @@ export async function saveMedication(
     if (await getInventory(db, id)) await updateInventory(db, id, input.inventory);
     else await createInventory(db, { ...input.inventory, medicationId: id });
   });
+  await syncReminders(db);
   return savedId;
 }
 
-export function setActive(db: Database, id: number, active: boolean) {
-  return setMedicationActive(db, id, active);
+export async function setActive(db: Database, id: number, active: boolean) {
+  await setMedicationActive(db, id, active);
+  await syncReminders(db);
 }
 
-export function removeMedication(db: Database, id: number) {
-  return deleteMedication(db, id);
+export async function removeMedication(db: Database, id: number) {
+  await deleteMedication(db, id);
+  await syncReminders(db);
 }
 
 /** Pre-fills the form from the stored medication; null if it no longer exists. */
