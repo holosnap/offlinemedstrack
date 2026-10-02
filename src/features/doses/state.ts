@@ -32,6 +32,36 @@ export async function findDoseLog(db: Database, ref: DoseRef): Promise<DoseLog |
   return log ?? null;
 }
 
+/** Runs inside a transaction: sets the log for `ref` to `next` and adjusts inventory to match. */
+async function applyDoseState(
+  db: Database,
+  ref: DoseRef,
+  next: DoseOutcome | null,
+): Promise<DoseLog | null> {
+  const prior = await findDoseLog(db, ref);
+  const delta = consumedQuantity(next) - consumedQuantity(prior);
+  if (delta !== 0) {
+    try {
+      await adjustInventoryQuantity(db, ref.medicationId, -delta);
+    } catch (error) {
+      // Supply isn't tracked for this medication.
+      if (!(error instanceof NotFoundError)) throw error;
+    }
+  }
+  if (next) {
+    await recordDose(db, {
+      medicationId: ref.medicationId,
+      scheduledFor: ref.scheduledFor,
+      status: next.status,
+      quantity: next.quantity,
+      actedAt: next.actedAt,
+    });
+  } else if (prior) {
+    await deleteDoseLog(db, prior.id);
+  }
+  return prior;
+}
+
 /**
  * The one place a dose's state changes. Sets the log for `ref` to `next` (or removes it when
  * `next` is null) and keeps inventory in step in the same transaction: inventory goes down by the
@@ -45,27 +75,26 @@ export async function setDoseState(
 ): Promise<DoseLog | null> {
   let prior = null as DoseLog | null;
   await db.withTransactionAsync(async () => {
-    prior = await findDoseLog(db, ref);
-    const delta = consumedQuantity(next) - consumedQuantity(prior);
-    if (delta !== 0) {
-      try {
-        await adjustInventoryQuantity(db, ref.medicationId, -delta);
-      } catch (error) {
-        // Supply isn't tracked for this medication.
-        if (!(error instanceof NotFoundError)) throw error;
-      }
-    }
-    if (next) {
-      await recordDose(db, {
-        medicationId: ref.medicationId,
-        scheduledFor: ref.scheduledFor,
-        status: next.status,
-        quantity: next.quantity,
-        actedAt: next.actedAt,
-      });
-    } else if (prior) {
-      await deleteDoseLog(db, prior.id);
-    }
+    prior = await applyDoseState(db, ref, next);
+  });
+  return prior;
+}
+
+/**
+ * Moves a dose log to a different slot (e.g. correcting when an as-needed dose was taken, which is
+ * its key) atomically: the old log is removed and the new one written, with inventory adjusted by
+ * the net difference. If anything fails, nothing changes.
+ */
+export async function moveDose(
+  db: Database,
+  from: DoseRef,
+  to: DoseRef,
+  next: DoseOutcome,
+): Promise<DoseLog | null> {
+  let prior = null as DoseLog | null;
+  await db.withTransactionAsync(async () => {
+    prior = await applyDoseState(db, from, null);
+    await applyDoseState(db, to, next);
   });
   return prior;
 }

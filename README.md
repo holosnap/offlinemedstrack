@@ -52,6 +52,12 @@ The home tab lists today's doses grouped by time of day (or exact time, see Sett
 
 Logging a dose as taken reduces your supply by the quantity taken; skipped and missed doses do not, and undoing a taken dose gives the supply back.
 
+## History
+
+The **History** tab shows a calendar where each day is colored (and marked with a symbol and spoken label) as all doses taken, some missed, none taken, or nothing scheduled. Tap a day to see its log. If you took a dose but forgot to record it, tap **Edit** to mark it taken (with the time and quantity), skipped, missed, or not recorded; you can also add, change or delete as-needed doses. Supply is adjusted to match every edit, and each change has an Undo.
+
+Adherence per medication over 7, 30 and 90 days is taken doses divided by doses due; skipped and missed doses count as not taken, late doses count as taken, and as-needed medications show a dose count instead of a percentage. **Share with your doctor** exports the last 30 or 90 days, or all history, as a CSV or PDF through your phone's share sheet. Nothing is sent anywhere until you pick a destination. (Manual check on a device: export both formats and open them from the share target.)
+
 ## Refill tracking
 
 Supply is projected from your schedule: weekday-only and every-N-days schedules are counted exactly, and as-needed medications use your average over the last 30 days. The medication list shows a supply indicator, the detail screen shows the estimated run-out date, and the **Refills** tab lists every medication by soonest run-out date.

@@ -14,6 +14,10 @@ export interface Palette {
   warningText: string;
   infoBackground: string;
   infoText: string;
+  successBackground: string;
+  successText: string;
+  dangerBackground: string;
+  dangerText: string;
 }
 
 // All text/background pairs meet WCAG AA (4.5:1); borders on inputs meet 3:1.
@@ -31,6 +35,10 @@ const light: Palette = {
   warningText: '#6B3A00',
   infoBackground: '#E1E8F2',
   infoText: '#1F2A44',
+  successBackground: '#CDEBD6',
+  successText: '#0E4D1F',
+  dangerBackground: '#F8D3CF',
+  dangerText: '#7A1710',
 };
 
 const dark: Palette = {
@@ -47,6 +55,10 @@ const dark: Palette = {
   warningText: '#FFE2A3',
   infoBackground: '#2A3242',
   infoText: '#DCE4F2',
+  successBackground: '#1D3B27',
+  successText: '#BFE8CB',
+  dangerBackground: '#4A1F1B',
+  dangerText: '#FFC9C3',
 };
 
 export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;

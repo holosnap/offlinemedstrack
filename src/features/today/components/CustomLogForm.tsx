@@ -4,12 +4,16 @@ import { StyleSheet, View } from 'react-native';
 import { Button, TextField, spacing } from '@/components';
 import { resolveTakenAt } from '@/features/doses/doseActions';
 import { formatQuantity } from '@/lib/format';
-import { localDateOf, parseTimeInput } from '@/lib/time';
+import { localDateOf, parseTimeInput, type LocalDate } from '@/lib/time';
 
 interface CustomLogFormProps {
   defaultQuantity: number;
-  /** Local day the dose belongs to (today). */
+  /** The current time; the time taken can't be later than this. */
   now: Date;
+  /** Local day the dose belongs to. Defaults to today. */
+  date?: LocalDate;
+  /** Initial value of the time field (HH:mm). Defaults to the current time. */
+  defaultTime?: string;
   submitLabel?: string;
   onSubmit: (value: { quantity: number; takenAt: Date }) => Promise<boolean> | boolean;
   onCancel: () => void;
@@ -21,12 +25,16 @@ const pad = (n: number) => String(n).padStart(2, '0');
 export function CustomLogForm({
   defaultQuantity,
   now,
+  date,
+  defaultTime,
   submitLabel = 'Save',
   onSubmit,
   onCancel,
 }: CustomLogFormProps) {
   const [quantityText, setQuantityText] = useState(formatQuantity(defaultQuantity));
-  const [timeText, setTimeText] = useState(`${pad(now.getHours())}:${pad(now.getMinutes())}`);
+  const [timeText, setTimeText] = useState(
+    defaultTime ?? `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+  );
   const [errors, setErrors] = useState<{ quantity?: string; time?: string }>({});
   const [saving, setSaving] = useState(false);
 
@@ -36,7 +44,7 @@ export function CustomLogForm({
     if (!quantityText.trim() || !Number.isFinite(quantity) || quantity <= 0) {
       next.quantity = 'Enter a quantity greater than 0';
     }
-    const taken = resolveTakenAt(localDateOf(now), parseTimeInput(timeText), now);
+    const taken = resolveTakenAt(date ?? localDateOf(now), parseTimeInput(timeText), now);
     if (!taken.ok) next.time = taken.error;
     setErrors(next);
     if (next.quantity || next.time || !taken.ok) return;
