@@ -1,7 +1,7 @@
 import { listActiveSchedulesInRange, listDoseLogsInRange } from '@/db/repositories';
 import type { Database } from '@/db/types';
 import { addDays, localDateOf, localDayRangeUtc } from '@/lib/time';
-import { doseKey, expandSlots, isMissed } from './timeline';
+import { coveredSlotKeys, doseKey, expandSlots, isMissed } from './timeline';
 import { setDoseState } from './state';
 
 export const MISSED_LOOKBACK_DAYS = 7;
@@ -26,7 +26,14 @@ export async function markMissedDoses(
   const logByKey = new Map(logs.map((l) => [doseKey(l.medicationId, l.scheduledFor), l]));
 
   let marked = 0;
-  for (const slot of expandSlots(schedules, from, today)) {
+  const slots = expandSlots(schedules, from, today);
+  const covered = coveredSlotKeys(
+    slots.map((s) => ({ medicationId: s.schedule.medicationId, scheduledFor: s.scheduledFor })),
+    logs,
+  );
+  for (const slot of slots) {
+    // A dose already logged under a time that was since edited away is not missing.
+    if (covered.has(doseKey(slot.schedule.medicationId, slot.scheduledFor))) continue;
     const log = logByKey.get(doseKey(slot.schedule.medicationId, slot.scheduledFor)) ?? null;
     if (!isMissed(slot, log, now, missedAfterMinutes)) continue;
     await setDoseState(

@@ -45,6 +45,7 @@ const log = (over: Partial<DoseLog> & Pick<DoseLog, 'scheduledFor' | 'status'>):
   medicationId: 1,
   actedAt: null,
   quantity: null,
+  supplyUsed: null,
   note: null,
   createdAt: '2026-06-10T00:00:00.000Z',
   updatedAt: '2026-06-10T00:00:00.000Z',

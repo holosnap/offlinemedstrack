@@ -8,7 +8,7 @@ import {
   listSchedulesForMedication,
   saveRefillAlert,
 } from '@/db/repositories';
-import type { Medication } from '@/db/models';
+import type { Medication, Schedule } from '@/db/models';
 import type { Database } from '@/db/types';
 import { getSettings } from '@/features/settings/settings';
 import { buildSummary } from '@/features/medications/summary';
@@ -19,8 +19,16 @@ import {
 } from '@/features/refills/planner';
 import { loadAverageUsage } from '@/features/refills/usage';
 import { formatQuantity } from '@/lib/format';
-import { addDays, localDateOf } from '@/lib/time';
-import { DOSE_ID_PREFIX, MAX_SCHEDULED_DOSES, SNOOZE_ID_PREFIX, WINDOW_DAYS } from './constants';
+import { nextDoseAfter } from '@/lib/schedule';
+import { addDays, localDateOf, localDayRangeUtc } from '@/lib/time';
+import { coveredSlotKeys, expandSlots } from '@/features/doses/timeline';
+import {
+  DOSE_ID_PREFIX,
+  MAX_SCHEDULED_DOSES,
+  NUDGE_ID_PREFIX,
+  SNOOZE_ID_PREFIX,
+  WINDOW_DAYS,
+} from './constants';
 import { doseKey, medicationIdOfSnooze, planDoses, type PlannedDose } from './planner';
 import type { DoseNotificationData, NotificationsPort, PermissionState } from './ports';
 
@@ -30,6 +38,8 @@ export interface ReconcileDeps {
   now?: () => Date;
   windowDays?: number;
   maxDoses?: number;
+  /** Schedule the "keep your reminders going" notice (default true; tests turn it off). */
+  keepAlive?: boolean;
 }
 
 export interface ReconcileResult {
@@ -107,19 +117,27 @@ async function planDoseReminders(
   deps: ReconcileDeps,
   now: Date,
   maxDoses: number,
-): Promise<PlannedDose[]> {
+): Promise<{ doses: PlannedDose[]; schedules: Schedule[] }> {
   const { db } = deps;
   const windowDays = deps.windowDays ?? WINDOW_DAYS;
   const today = localDateOf(now);
   const schedules = await listActiveSchedulesInRange(db, today, addDays(today, windowDays));
   const horizon = new Date(now.getTime() + (windowDays + 1) * 86_400_000);
-  const logs = await listDoseLogsInRange(db, now, horizon);
-  const resolved = new Set(
-    logs
+  // From the start of today, so doses logged earlier today (possibly under a time that was since
+  // edited) are known: they must not be reminded about again.
+  const logs = await listDoseLogsInRange(db, localDayRangeUtc(today).from, horizon);
+  const slots = expandSlots(schedules, today, addDays(today, windowDays + 1));
+  const covered = coveredSlotKeys(
+    slots.map((s) => ({ medicationId: s.schedule.medicationId, scheduledFor: s.scheduledFor })),
+    logs,
+  );
+  const resolved = new Set([
+    ...logs
       .filter((l) => l.status === 'taken' || l.status === 'skipped')
       .map((l) => doseKey(l.medicationId, l.scheduledFor)),
-  );
-  return planDoses({ schedules, now, resolved, windowDays, maxDoses });
+    ...covered,
+  ]);
+  return { doses: planDoses({ schedules, now, resolved, windowDays, maxDoses }), schedules };
 }
 
 async function doReconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
@@ -131,7 +149,8 @@ async function doReconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
     (p) =>
       p.identifier.startsWith(DOSE_ID_PREFIX) ||
       p.identifier.startsWith(SNOOZE_ID_PREFIX) ||
-      p.identifier.startsWith(REFILL_ID_PREFIX),
+      p.identifier.startsWith(REFILL_ID_PREFIX) ||
+      p.identifier.startsWith(NUDGE_ID_PREFIX),
   );
 
   // Refill state is tracked whether or not notifications are allowed.
@@ -158,11 +177,13 @@ async function doReconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
         },
       });
     }
+    // Leave room for the "keep reminders going" notice.
     const maxDoses = Math.max(
       0,
-      Math.min(deps.maxDoses ?? MAX_SCHEDULED_DOSES, MAX_PENDING_TOTAL - desired.size),
+      Math.min(deps.maxDoses ?? MAX_SCHEDULED_DOSES, MAX_PENDING_TOTAL - 1 - desired.size),
     );
-    for (const dose of await planDoseReminders(deps, now, maxDoses)) {
+    const planned = await planDoseReminders(deps, now, maxDoses);
+    for (const dose of planned.doses) {
       const medication = medications.get(dose.medicationId);
       if (!medication) continue;
       const { title, body } = notificationContent(medication);
@@ -181,6 +202,44 @@ async function doReconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
         sound: soundEnabled,
         data,
       });
+    }
+
+    // Reminders are only scheduled a window ahead (and iOS keeps at most 64). If more doses are due
+    // beyond the last one scheduled, add a notice right after it asking to open the app, so a
+    // person who doesn't open it for a while knows reminders are about to stop.
+    const last = planned.doses.at(-1);
+    if (
+      deps.keepAlive !== false &&
+      last &&
+      nextDoseAfter(planned.schedules, new Date(last.scheduledFor)) !== null
+    ) {
+      const title = 'Keep your reminders going';
+      const body = 'Open OfflineMedsTrack so your upcoming reminders can be set up.';
+      const id = `${NUDGE_ID_PREFIX}${last.scheduledFor}`;
+      desired.set(id, {
+        id,
+        title,
+        body,
+        fireAt: new Date(new Date(last.scheduledFor).getTime() + 60_000),
+        sound: soundEnabled,
+        data: {
+          kind: 'nudge',
+          sound: soundEnabled,
+          content: contentKey(title, body, soundEnabled),
+        },
+      });
+    }
+  }
+
+  // Delivered reminders for medications that were deleted or paused shouldn't linger in the shade
+  // (their action buttons would still be tappable).
+  for (const shown of await port.listPresented()) {
+    const ours =
+      shown.identifier.startsWith(DOSE_ID_PREFIX) ||
+      shown.identifier.startsWith(SNOOZE_ID_PREFIX) ||
+      shown.identifier.startsWith(REFILL_ID_PREFIX);
+    if (ours && shown.medicationId !== null && !medications.has(shown.medicationId)) {
+      await port.dismiss(shown.identifier);
     }
   }
 

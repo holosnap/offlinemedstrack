@@ -46,7 +46,7 @@ export async function loadToday(db: Database, now: Date = new Date()): Promise<T
 
   const doses = buildTimeline({
     medications: byId,
-    schedules: schedules.filter((s) => s.type !== 'as_needed'),
+    schedules,
     logs,
     date,
     now,

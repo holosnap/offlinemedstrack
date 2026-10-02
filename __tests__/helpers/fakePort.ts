@@ -11,6 +11,8 @@ export class FakePort implements NotificationsPort {
   permission: PermissionState = 'granted';
   pending = new Map<string, NotificationRequest>();
   dismissed: string[] = [];
+  /** Delivered notifications still in the shade (see `listPresented`). */
+  presented: { identifier: string; medicationId: number | null }[] = [];
   scheduleCalls = 0;
   cancelCalls = 0;
 
@@ -25,6 +27,10 @@ export class FakePort implements NotificationsPort {
     }));
   }
 
+  async listPresented() {
+    return [...this.presented];
+  }
+
   async schedule(request: NotificationRequest) {
     this.scheduleCalls++;
     this.pending.set(request.identifier, request);
@@ -37,6 +43,7 @@ export class FakePort implements NotificationsPort {
 
   async dismiss(identifier: string) {
     this.dismissed.push(identifier);
+    this.presented = this.presented.filter((p) => p.identifier !== identifier);
   }
 
   /** Pending dose reminders as local wall-clock strings, e.g. `2026-06-10 20:00`. */

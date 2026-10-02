@@ -42,6 +42,7 @@ const log = (date: string, time: string, over: Partial<DoseLog> = {}): DoseLog =
   status: 'taken',
   actedAt: localToUtc(date, time),
   quantity: 1,
+  supplyUsed: null,
   note: null,
   createdAt: OLD,
   updatedAt: OLD,
@@ -130,17 +131,25 @@ describe('day status', () => {
     ).toEqual(['no_doses', 'none', 'no_doses', 'none', 'no_doses']);
   });
 
-  it('lists a dose that was logged even if the schedule has since changed', () => {
+  it('does not count a logged dose twice when the schedule time was edited afterwards', () => {
+    // 08:00 was taken, then the time was changed to 09:30: the day has one dose, already taken.
     const m = stats({
       schedules: [schedule({ times: ['09:30'] })],
       logs: [log('2026-06-08', '08:00')],
     });
     const day = m.get('2026-06-08');
-    expect(day?.doses.map((d) => [d.time, d.status])).toEqual([
-      ['08:00', 'taken'],
-      ['09:30', 'missed'],
+    expect(day?.doses.map((d) => [d.time, d.status])).toEqual([['08:00', 'taken']]);
+    expect(day?.status).toBe('all_taken');
+  });
+
+  it('matches a logged dose to the nearest new time and still expects the others', () => {
+    const edited = schedule({ times: ['09:00', '21:00'] });
+    const m = stats({ schedules: [edited], logs: [log('2026-06-08', '08:10')] });
+    expect(m.get('2026-06-08')?.doses.map((d) => [d.time, d.status])).toEqual([
+      ['08:10', 'taken'],
+      ['21:00', 'missed'],
     ]);
-    expect(day?.status).toBe('partial');
+    expect(statusOf(m, '2026-06-08')).toBe('partial');
   });
 
   it('does not invent misses before the schedule was last edited', () => {

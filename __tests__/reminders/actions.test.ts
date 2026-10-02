@@ -61,7 +61,7 @@ describe('handleNotificationResponse', () => {
     const [log] = await logs();
     expect(log).toMatchObject({ status: 'taken', scheduledFor: SCHEDULED, quantity: 2 });
     expect(await supply()).toBe(8);
-    expect(port.dismissed).toEqual([`dose:${medId}:${SCHEDULED}`]);
+    expect(port.dismissed).toContain(`dose:${medId}:${SCHEDULED}`);
   });
 
   it('is idempotent: handling the same response twice logs and counts once', async () => {

@@ -45,7 +45,7 @@ export function doseStatusText(dose: HistoryDose): string {
  * null when nothing changes. `next` is the quantity the dose will count as taken (0 if not taken).
  */
 export function supplyEffectText(
-  prior: Pick<DoseLog, 'status' | 'quantity'> | null,
+  prior: Pick<DoseLog, 'status' | 'quantity' | 'supplyUsed'> | null,
   nextTaken: number,
   unit: string,
 ): string | null {

@@ -5,6 +5,11 @@ import { minTouchTarget, radius, spacing, usePalette } from './theme';
 
 interface ButtonProps {
   label: string;
+  /**
+   * What a screen reader announces, when the visible label needs context (e.g. "Taken" on a list of
+   * doses becomes "Taken, Metformin 8:00 AM"). Defaults to the label.
+   */
+  accessibilityLabel?: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'danger';
   disabled?: boolean;
@@ -15,6 +20,7 @@ interface ButtonProps {
 
 export function Button({
   label,
+  accessibilityLabel,
   onPress,
   variant = 'primary',
   disabled = false,
@@ -35,7 +41,7 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled }}
       disabled={disabled}

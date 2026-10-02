@@ -51,17 +51,20 @@ function RefillRow({ summary }: { summary: MedicationSummary }) {
         <>
           <Button
             label="Record refill"
-            accessibilityHint={`Adds a pickup to ${medication.name}`}
+            accessibilityLabel={`Record refill, ${medication.name}`}
+            accessibilityHint="Adds a pickup to your supply"
             onPress={() => router.push(`/medications/${medication.id}/refill`)}
           />
           <CallPharmacyButton
             phone={inventory.pharmacyPhone}
             pharmacyName={inventory.pharmacyName}
+            medicationName={medication.name}
           />
         </>
       ) : (
         <Button
           label="Set up supply"
+          accessibilityLabel={`Set up supply, ${medication.name}`}
           onPress={() => router.push(`/medications/${medication.id}/edit`)}
         />
       )}

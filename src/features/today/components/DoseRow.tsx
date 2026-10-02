@@ -76,8 +76,9 @@ export function DoseRow({ dose, actions, now, snoozeMinutes }: DoseRowProps) {
       {resolved ? (
         <Button
           label="Undo"
+          accessibilityLabel={`Undo ${label}`}
           variant="secondary"
-          accessibilityHint={`Resets the ${label} dose to not yet logged`}
+          accessibilityHint="Resets this dose to not yet logged"
           onPress={() => actions.clear(dose)}
         />
       ) : mode === 'custom' ? (
@@ -92,33 +93,47 @@ export function DoseRow({ dose, actions, now, snoozeMinutes }: DoseRowProps) {
         <>
           <Button
             label="Taken"
-            accessibilityHint={`Marks the ${label} dose as taken`}
+            accessibilityLabel={`Taken, ${label}`}
+            accessibilityHint="Marks this dose as taken"
             onPress={() => actions.taken(dose)}
           />
           {mode === 'more' ? (
             <View style={styles.more}>
               <Button
                 label="Skip"
+                accessibilityLabel={`Skip ${label}`}
                 variant="secondary"
-                accessibilityHint={`Skips the ${label} dose`}
+                accessibilityHint="Skips this dose"
                 onPress={() => actions.skip(dose)}
               />
               {dose.status !== 'missed' ? (
                 <Button
                   label={`Snooze ${snoozeMinutes} min`}
+                  accessibilityLabel={`Snooze ${snoozeMinutes} min, ${label}`}
                   variant="secondary"
                   onPress={() => actions.snooze(dose)}
                 />
               ) : null}
               <Button
                 label="Different time or quantity"
+                accessibilityLabel={`Different time or quantity, ${label}`}
                 variant="secondary"
                 onPress={() => setMode('custom')}
               />
-              <Button label="Fewer options" variant="secondary" onPress={() => setMode('closed')} />
+              <Button
+                label="Fewer options"
+                accessibilityLabel={`Fewer options for ${label}`}
+                variant="secondary"
+                onPress={() => setMode('closed')}
+              />
             </View>
           ) : (
-            <Button label="More options" variant="secondary" onPress={() => setMode('more')} />
+            <Button
+              label="More options"
+              accessibilityLabel={`More options for ${label}`}
+              variant="secondary"
+              onPress={() => setMode('more')}
+            />
           )}
         </>
       )}

@@ -29,6 +29,8 @@ Path alias: `@/*` maps to `src/*` (e.g. `import { db } from '@/db/client'`).
 - Tabs live in `app/(tabs)`: Today (home, `index`), Medications (`meds`), Settings. Detail/edit/new routes are Stack screens above the tabs.
 - **All dose state changes go through `setDoseState` (`src/features/doses/state.ts`)** (via `takeDose`/`skipDose`/`snoozeDose`/`logAsNeededDose`/`undoDose` in `doseActions.ts`). It adjusts inventory in the same transaction: only a _taken_ dose consumes supply (by the logged quantity); skipped, missed and snoozed never do; changing or undoing a taken dose gives it back. Never call `recordDose` or `adjustInventoryQuantity` directly for logging.
 - `timeline.ts` is pure: builds the day's doses, effective status (upcoming/overdue/snoozed/taken/skipped/missed), grouping, and the as-needed list. `missed.ts` persists "missed" once the configurable window (setting `missedAfterMinutes`, default 120) elapses; it runs whenever Today loads, on a 60 s refresh, and on foreground. Doses scheduled before a schedule was last edited are never marked missed.
+- **Supply never goes below zero.** `setDoseStateDetailed` records `supply_used` (what was actually deducted, migration 004) and returns a `shortfall`; callers (`takeDose`, history edits) surface it via `shortfallMessage` / `SupplyWarning`. Undo/edit give back exactly what was used.
+- **Schedule edits and logged doses:** `coveredSlotKeys` (`timeline.ts`) lets a taken/skipped log whose time was edited away stand in for the nearest unlogged slot of that medication and day, so the day's dose is never shown, reminded about, or marked missed twice. It is applied in the timeline, the missed sweep, History and `reconcile`: use it for any new code that expands slots against logs. `schedules.updated_at` only changes when the dose _timing_ changes (times, days, interval, start date, type), because it is the floor for expected doses.
 - As-needed doses are logged with `scheduledFor` = the time taken (no schedule slot).
 - Settings are key/value rows (`settings` table, migration 002); use `getSettings`/`updateSettings` in `src/features/settings/settings.ts`.
 
@@ -58,7 +60,12 @@ Path alias: `@/*` maps to `src/*` (e.g. `import { db } from '@/db/client'`).
 - Call `syncReminders(db)` after any change to medications, schedules, or dose logs; it is best-effort and never throws. It also runs on launch and when the app returns to the foreground (`useReminderLifecycle`).
 - `planner.ts` is pure (no Expo imports); doses are computed from local wall-clock times in the device's current zone, so a zone/DST change is fixed by the next reconcile. Notification ids are deterministic: `dose:{medId}:{scheduledFor}` and `snooze:{medId}:{scheduledFor}`.
 - `actions.ts` handles Taken / Snooze / Skip and is idempotent. Expo is reached only through `NotificationsPort` (`ports.ts`, adapter in `expoPort.ts`), so logic is tested with `__tests__/helpers/fakePort.ts`.
+- Reminders only cover a rolling window (and at most 56 doses), so after the last scheduled reminder `reconcile` adds one `nudge:` notice ("Keep your reminders going") if more doses are due later; opening the app reconciles again. Delivered reminders for deleted/paused medications are dismissed (`port.listPresented`), and a button tapped for a deleted medication is ignored. A time zone change while the app is closed can't be detected until the app is next opened (managed Expo has no hook for it).
 - iOS allows 64 pending notifications; `MAX_SCHEDULED_DOSES` (56) leaves headroom for snoozes.
+
+## Accessibility
+
+- Buttons that repeat on a screen (Taken, Edit, Undo, Record refill, ...) must pass `accessibilityLabel` with context (e.g. `Taken, Metformin 8:00 AM`) that still starts with the visible label. `__tests__/a11y/screens.test.tsx` fails if any control is unnamed or two buttons on a screen share a name; `contrast.test.ts` checks every text/background pair of both palettes against WCAG AA (add new color pairs there). Information is never color alone (symbols, text labels). Time-limited UI (Undo bar) stays until dismissed for screen-reader users. Large text: layouts must grow, not clip (`MonthCalendar` stacks and caps font growth in its dense grid).
 
 ## Conventions
 

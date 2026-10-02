@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 
 import { AppText, Button, Screen } from '@/components';
 import { useLoad } from '@/features/medications/useLoad';
+import { SupplyWarning } from '@/features/today/components/SupplyWarning';
 import { UndoBar } from '@/features/today/components/UndoBar';
 import type { LocalDate } from '@/lib/time';
 import { AdherenceCard } from '../components/AdherenceCard';
@@ -72,6 +73,9 @@ export function HistoryScreen({ exporter = expoExporter }: { exporter?: FileExpo
         onPrevious={() => move(-1)}
         onNext={() => move(1)}
       />
+      {actions.warning ? (
+        <SupplyWarning message={actions.warning} onDismiss={actions.dismissWarning} />
+      ) : null}
       {actions.error ? (
         <AppText accessibilityLiveRegion="assertive">{actions.error}</AppText>
       ) : null}

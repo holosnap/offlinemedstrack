@@ -1,5 +1,11 @@
 import type { DoseLog, Medication, Schedule } from '@/db/models';
-import { doseKey, describeAmount, expandSlots, isMissed } from '@/features/doses/timeline';
+import {
+  coveredSlotKeys,
+  doseKey,
+  describeAmount,
+  expandSlots,
+  isMissed,
+} from '@/features/doses/timeline';
 import { formatQuantity } from '@/lib/format';
 import { addDays, localDateOf, type LocalDate, type LocalTime, type UtcIso } from '@/lib/time';
 
@@ -93,11 +99,17 @@ export function buildDayStats(input: DayStatsInput): Map<LocalDate, DayStats> {
   const activeScheduled = input.schedules.filter(
     (s) => s.type !== 'as_needed' && meds.get(s.medicationId)?.active,
   );
-  for (const slot of expandSlots(activeScheduled, from, to)) {
+  const slots = expandSlots(activeScheduled, from, to);
+  const covered = coveredSlotKeys(
+    slots.map((s) => ({ medicationId: s.schedule.medicationId, scheduledFor: s.scheduledFor })),
+    input.logs,
+  );
+  for (const slot of slots) {
     const medication = meds.get(slot.schedule.medicationId);
     const day = dayOf(slot.scheduledFor);
     if (!medication || !day) continue;
     const key = doseKey(medication.id, slot.scheduledFor);
+    if (covered.has(key)) continue; // stood in for by a log under an edited-away time
     const log = logByKey.get(key) ?? null;
     if (!log && slot.scheduledFor < slot.schedule.updatedAt) continue;
     if (!log && new Date(slot.scheduledFor) > now) continue; // not due yet: that's Today's job

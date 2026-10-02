@@ -71,6 +71,13 @@ Supply is projected from your schedule: weekday-only and every-N-days schedules 
 
 When supply reaches your refill threshold you get a reminder at 9:00 the next morning, and one more two days later if it is still unresolved (never more than two per low-supply period). If a prescription has no refills left you get a single reminder to contact your doctor. **Record refill** adds the quantity, the date and an optional note, uses up one remaining refill, and keeps a history. **Call pharmacy** dials the number stored with the medication (add it under Edit).
 
+## Reliability notes
+
+- Reminders are scheduled a few days ahead and refreshed whenever you open the app. They survive restarts and app updates, and the app repairs anything the system lost the next time it opens. If you don't open the app for a long time the scheduled reminders run out; a notice arrives after the last one asking you to open the app.
+- If you change time zones while the app is closed, reminders keep their old absolute times until you next open the app, which moves them to the same local times.
+- If a dose is larger than the supply the app has recorded, supply stops at zero and you are warned to check the count.
+- Editing a medication's times after logging a dose does not make that dose appear twice.
+
 ## Dose reminders
 
 Reminders are local notifications; nothing leaves the device. Use a **development build** to test them (`npx expo run:android` / `run:ios`); Expo Go is unreliable for notifications.

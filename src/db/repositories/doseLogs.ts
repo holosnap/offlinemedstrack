@@ -22,6 +22,7 @@ interface DoseLogRow {
   status: DoseStatus;
   acted_at: string | null;
   quantity: number | null;
+  supply_used: number | null;
   note: string | null;
   created_at: string;
   updated_at: string;
@@ -34,6 +35,8 @@ export interface NewDoseLog {
   /** Defaults to now, except for `missed` (nobody acted) where it defaults to null. */
   actedAt?: Date | string | null;
   quantity?: number | null;
+  /** Supply the dose used; defaults to null (meaning the quantity). */
+  supplyUsed?: number | null;
   note?: string | null;
 }
 
@@ -55,6 +58,7 @@ const toDoseLog = (row: DoseLogRow): DoseLog => ({
   status: row.status,
   actedAt: row.acted_at,
   quantity: row.quantity,
+  supplyUsed: row.supply_used,
   note: row.note,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
@@ -81,14 +85,16 @@ export async function createDoseLog(db: Database, input: NewDoseLog): Promise<Do
         : now;
   const result = await db.runAsync(
     `INSERT INTO dose_logs
-       (medication_id, scheduled_for, status, acted_at, quantity, note, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (medication_id, scheduled_for, status, acted_at, quantity, supply_used, note, created_at,
+        updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       input.medicationId,
       toUtcIso(input.scheduledFor),
       input.status,
       actedAt ?? null,
       input.quantity ?? null,
+      input.supplyUsed ?? null,
       input.note ?? null,
       now,
       now,
@@ -113,13 +119,16 @@ export async function recordDose(db: Database, input: NewDoseLog): Promise<DoseL
         : now;
   await db.runAsync(
     `INSERT INTO dose_logs
-       (medication_id, scheduled_for, status, acted_at, quantity, note, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       (medication_id, scheduled_for, status, acted_at, quantity, supply_used, note, created_at,
+        updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (medication_id, scheduled_for) DO UPDATE SET
        status = excluded.status,
        acted_at = excluded.acted_at,
        quantity = excluded.quantity,
-       note = excluded.note,
+       supply_used = excluded.supply_used,
+       -- Re-recording a dose (e.g. editing it) keeps a note that was already there.
+       note = COALESCE(excluded.note, note),
        updated_at = excluded.updated_at`,
     [
       input.medicationId,
@@ -127,6 +136,7 @@ export async function recordDose(db: Database, input: NewDoseLog): Promise<DoseL
       input.status,
       actedAt ?? null,
       input.quantity ?? null,
+      input.supplyUsed ?? null,
       input.note ?? null,
       now,
       now,
@@ -201,6 +211,7 @@ export async function updateDoseLog(
     status: patch.status,
     acted_at: optionalUtc(patch.actedAt),
     quantity: patch.quantity,
+    supply_used: patch.supplyUsed,
     note: patch.note,
     updated_at: nowUtc(),
   });

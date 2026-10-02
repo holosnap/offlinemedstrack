@@ -1,4 +1,5 @@
 import type { DoseStatus } from '@/db/models';
+import { getMedication } from '@/db/repositories';
 import { skipDose, snoozeDose, takeDose } from '@/features/doses/doseActions';
 import { findDoseLog } from '@/features/doses/state';
 import type { Database } from '@/db/types';
@@ -75,6 +76,12 @@ export async function handleNotificationResponse(
           ? 'snoozed'
           : null;
   if (!status) return { type: 'open', medicationId: dose.medicationId };
+
+  // The medication may have been deleted since this notification was delivered.
+  if (!(await getMedication(deps.db, dose.medicationId))) {
+    await port.dismiss(request.identifier);
+    return { type: 'ignored' };
+  }
 
   const actionDeps = { db: deps.db, port, now: deps.now };
   if (status === 'snoozed') {

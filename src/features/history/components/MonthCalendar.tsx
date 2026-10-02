@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { AppText, Button, radius, spacing, usePalette, type Palette } from '@/components';
 import { formatLocalDate } from '@/lib/format';
@@ -52,14 +52,29 @@ export function MonthCalendar({
   onNext,
 }: MonthCalendarProps) {
   const palette = usePalette();
+  const { fontScale } = useWindowDimensions();
+  // With very large text, stack the month heading above the buttons and let day cells grow.
+  const large = fontScale >= 1.4;
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Button label="Previous" variant="secondary" onPress={onPrevious} style={styles.nav} />
+      <View style={[styles.header, large && styles.headerLarge]}>
+        <Button
+          label="Previous"
+          accessibilityLabel="Previous month"
+          variant="secondary"
+          onPress={onPrevious}
+          style={styles.nav}
+        />
         <AppText variant="heading" style={styles.title} accessibilityLiveRegion="polite">
           {monthTitle(month)}
         </AppText>
-        <Button label="Next" variant="secondary" onPress={onNext} style={styles.nav} />
+        <Button
+          label="Next"
+          accessibilityLabel="Next month"
+          variant="secondary"
+          onPress={onNext}
+          style={styles.nav}
+        />
       </View>
 
       <View style={styles.row} accessibilityElementsHidden importantForAccessibility="no">
@@ -88,6 +103,7 @@ export function MonthCalendar({
                 style={[
                   styles.cell,
                   styles.day,
+                  { minHeight: 56 * Math.min(fontScale, 1.6) },
                   {
                     backgroundColor: bg,
                     borderColor: isSelected
@@ -99,10 +115,15 @@ export function MonthCalendar({
                   },
                 ]}
               >
-                <AppText variant="caption" color={fg} style={styles.number}>
+                <AppText
+                  variant="caption"
+                  color={fg}
+                  style={styles.number}
+                  maxFontSizeMultiplier={1.6}
+                >
                   {Number(date.slice(8))}
                 </AppText>
-                <AppText variant="caption" color={fg}>
+                <AppText variant="caption" color={fg} maxFontSizeMultiplier={1.6}>
                   {DAY_SYMBOLS[status]}
                 </AppText>
               </Pressable>
@@ -133,6 +154,7 @@ export function MonthCalendar({
 const styles = StyleSheet.create({
   container: { gap: spacing.xs },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  headerLarge: { flexDirection: 'column', alignItems: 'stretch' },
   nav: { paddingHorizontal: spacing.md },
   title: { flex: 1, textAlign: 'center' },
   row: { flexDirection: 'row', gap: 4 },
@@ -147,8 +169,9 @@ const styles = StyleSheet.create({
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.sm },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   swatch: {
-    width: 28,
-    height: 28,
+    minWidth: 28,
+    minHeight: 28,
+    paddingHorizontal: 2,
     borderRadius: 6,
     borderWidth: 1,
     alignItems: 'center',

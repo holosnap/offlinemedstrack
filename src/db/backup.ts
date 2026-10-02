@@ -71,6 +71,7 @@ export const BACKUP_TABLES: readonly TableSpec[] = [
       text('status'),
       text('acted_at', true),
       real('quantity', true),
+      real('supply_used', true),
       text('note', true),
       text('created_at'),
       text('updated_at'),

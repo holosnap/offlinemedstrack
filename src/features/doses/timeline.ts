@@ -1,7 +1,14 @@
 import type { DoseLog, Medication, Schedule } from '@/db/models';
 import { formatQuantity, formatTime } from '@/lib/format';
 import { scheduleOccursOn } from '@/lib/schedule';
-import { addDays, localToUtc, type LocalDate, type LocalTime, type UtcIso } from '@/lib/time';
+import {
+  addDays,
+  localDateOf,
+  localToUtc,
+  type LocalDate,
+  type LocalTime,
+  type UtcIso,
+} from '@/lib/time';
 
 export type TimelineStatus = 'upcoming' | 'overdue' | 'snoozed' | 'taken' | 'skipped' | 'missed';
 
@@ -58,6 +65,52 @@ export function expandSlots(
 }
 
 /**
+ * Slots that an already-logged dose stands in for. When a schedule's times are edited after a dose
+ * was taken or skipped (e.g. 08:00 taken, then the time changed to 09:00), that log no longer
+ * matches any slot. Rather than showing the day's dose twice, each such "orphan" log covers the
+ * nearest unlogged slot of the same medication on the same day.
+ */
+export function coveredSlotKeys(
+  slots: readonly { medicationId: number; scheduledFor: UtcIso }[],
+  logs: readonly DoseLog[],
+): Set<string> {
+  const slotKeys = new Set(slots.map((s) => doseKey(s.medicationId, s.scheduledFor)));
+  const loggedKeys = new Set(logs.map((l) => doseKey(l.medicationId, l.scheduledFor)));
+  const free = new Map<string, UtcIso[]>();
+  for (const slot of slots) {
+    if (loggedKeys.has(doseKey(slot.medicationId, slot.scheduledFor))) continue;
+    const group = `${slot.medicationId}|${localDateOf(new Date(slot.scheduledFor))}`;
+    free.set(group, [...(free.get(group) ?? []), slot.scheduledFor]);
+  }
+  const covered = new Set<string>();
+  const orphans = logs
+    .filter(
+      (l) =>
+        (l.status === 'taken' || l.status === 'skipped') &&
+        !slotKeys.has(doseKey(l.medicationId, l.scheduledFor)),
+    )
+    .sort((a, b) => a.scheduledFor.localeCompare(b.scheduledFor));
+  for (const log of orphans) {
+    const group = `${log.medicationId}|${localDateOf(new Date(log.scheduledFor))}`;
+    const candidates = free.get(group);
+    if (!candidates || candidates.length === 0) continue;
+    const at = new Date(log.scheduledFor).getTime();
+    let best = 0;
+    for (let i = 1; i < candidates.length; i++) {
+      if (
+        Math.abs(new Date(candidates[i]).getTime() - at) <
+        Math.abs(new Date(candidates[best]).getTime() - at)
+      ) {
+        best = i;
+      }
+    }
+    covered.add(doseKey(log.medicationId, candidates[best]));
+    candidates.splice(best, 1);
+  }
+  return covered;
+}
+
+/**
  * Whether an unresolved dose (no log, or only snoozed) should count as missed. Doses scheduled
  * before the schedule was last edited are ignored: the person never had that reminder.
  */
@@ -96,10 +149,22 @@ export function buildTimeline(input: TimelineInput): TimelineDose[] {
   const { medications, logs, now, missedAfterMinutes } = input;
   const logByKey = new Map(logs.map((l) => [doseKey(l.medicationId, l.scheduledFor), l]));
   const doses: TimelineDose[] = [];
+  const slots = expandSlots(input.schedules, input.date, input.date).filter((s) =>
+    medications.has(s.schedule.medicationId),
+  );
+  const covered = coveredSlotKeys(
+    slots.map((s) => ({ medicationId: s.schedule.medicationId, scheduledFor: s.scheduledFor })),
+    logs,
+  );
+  const asNeededMedications = new Set(
+    input.schedules.filter((s) => s.type === 'as_needed').map((s) => s.medicationId),
+  );
 
-  for (const slot of expandSlots(input.schedules, input.date, input.date)) {
+  for (const slot of slots) {
     const medication = medications.get(slot.schedule.medicationId);
     if (!medication) continue;
+    // An edited-away slot whose dose was already logged under its old time: shown as that log.
+    if (covered.has(doseKey(medication.id, slot.scheduledFor))) continue;
     const log = logByKey.get(doseKey(medication.id, slot.scheduledFor)) ?? null;
     // A dose from before the schedule's last edit is only shown if the person acted on it.
     if (!log && slot.scheduledFor < slot.schedule.updatedAt) continue;
@@ -126,6 +191,30 @@ export function buildTimeline(input: TimelineInput): TimelineDose[] {
       quantity: slot.schedule.doseQuantity,
       status,
       overdue: unresolved && now.getTime() > new Date(slot.scheduledFor).getTime(),
+      log,
+    });
+  }
+
+  // Logged doses that no longer match a slot (the schedule's times were edited): keep showing them.
+  const slotKeys = new Set(slots.map((s) => doseKey(s.schedule.medicationId, s.scheduledFor)));
+  for (const log of logs) {
+    const medication = medications.get(log.medicationId);
+    if (!medication || asNeededMedications.has(medication.id)) continue;
+    if (slotKeys.has(doseKey(log.medicationId, log.scheduledFor))) continue;
+    if (log.status !== 'taken' && log.status !== 'skipped') continue;
+    const at = new Date(log.scheduledFor);
+    const quantity = log.quantity ?? 1;
+    doses.push({
+      key: doseKey(medication.id, log.scheduledFor),
+      medicationId: medication.id,
+      name: medication.name,
+      strength: `${formatQuantity(medication.dosageAmount)} ${medication.dosageUnit}`,
+      amount: describeAmount(medication, quantity),
+      scheduledFor: log.scheduledFor,
+      time: `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`,
+      quantity,
+      status: log.status,
+      overdue: false,
       log,
     });
   }

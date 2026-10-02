@@ -10,6 +10,7 @@ import { useTodayActions } from '../useTodayActions';
 import { AsNeededSection } from '../components/AsNeededSection';
 import { DoseRow } from '../components/DoseRow';
 import { UndoBar } from '../components/UndoBar';
+import { SupplyWarning } from '../components/SupplyWarning';
 
 const REFRESH_MS = 60_000;
 
@@ -62,6 +63,9 @@ export function TodayScreen() {
         ) : null}
       </View>
 
+      {actions.warning ? (
+        <SupplyWarning message={actions.warning} onDismiss={actions.dismissWarning} />
+      ) : null}
       {actions.error ? (
         <AppText color={palette.danger} accessibilityLiveRegion="assertive">
           {actions.error}

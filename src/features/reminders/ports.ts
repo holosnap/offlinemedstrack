@@ -18,10 +18,17 @@ export interface NotificationRequest {
   sound: boolean;
 }
 
+export interface PresentedNotification {
+  identifier: string;
+  medicationId: number | null;
+}
+
 /** The slice of expo-notifications the reminder logic needs, so it can be tested with a fake. */
 export interface NotificationsPort {
   getPermissionState(): Promise<PermissionState>;
   listPending(): Promise<PendingNotification[]>;
+  /** Notifications already delivered and still in the notification shade. */
+  listPresented(): Promise<PresentedNotification[]>;
   schedule(request: NotificationRequest): Promise<void>;
   cancel(identifier: string): Promise<void>;
   /** Removes an already delivered notification from the notification shade. */

@@ -43,11 +43,13 @@ function Entry({
         <>
           <Button
             label={`Log ${entry.amount} now`}
+            accessibilityLabel={`Log ${entry.amount} of ${medication.name} now`}
             accessibilityHint={`Records a ${medication.name} dose taken right now`}
             onPress={() => actions.logAsNeeded(entry)}
           />
           <Button
             label="Different time or quantity"
+            accessibilityLabel={`Different time or quantity, ${medication.name}`}
             variant="secondary"
             onPress={() => setCustom(true)}
           />
@@ -64,8 +66,9 @@ function Entry({
               </AppText>
               <Button
                 label="Undo"
+                accessibilityLabel={`Undo ${medication.name} at ${formatClock(log.scheduledFor)}`}
                 variant="secondary"
-                accessibilityHint={`Removes the ${formatClock(log.scheduledFor)} ${medication.name} dose`}
+                accessibilityHint="Removes this dose and gives the supply back"
                 onPress={() => actions.removeAsNeeded(entry, log)}
               />
             </View>

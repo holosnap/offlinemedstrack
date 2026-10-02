@@ -19,7 +19,7 @@ let db: Database;
 let port: FakePort;
 
 const run = ({ now = NOW, ...over }: { windowDays?: number; maxDoses?: number; now?: Date } = {}) =>
-  reconcile({ db, port, now: () => now, windowDays: 2, ...over });
+  reconcile({ db, port, now: () => now, windowDays: 2, keepAlive: false, ...over });
 
 async function seed(
   name = 'Metformin',

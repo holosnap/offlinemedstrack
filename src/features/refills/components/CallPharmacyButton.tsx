@@ -8,9 +8,12 @@ import { phoneToTelUrl } from '@/lib/format';
 export function CallPharmacyButton({
   phone,
   pharmacyName,
+  medicationName,
 }: {
   phone: string | null | undefined;
   pharmacyName?: string | null;
+  /** Added to the spoken label when several of these buttons are on one screen. */
+  medicationName?: string;
 }) {
   const palette = usePalette();
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +33,7 @@ export function CallPharmacyButton({
     <View style={{ gap: 8 }}>
       <Button
         label="Call pharmacy"
+        accessibilityLabel={medicationName ? `Call pharmacy, ${medicationName}` : 'Call pharmacy'}
         variant="secondary"
         accessibilityHint={`Calls ${pharmacyName ? pharmacyName : 'the pharmacy'} at ${phone}`}
         onPress={call}

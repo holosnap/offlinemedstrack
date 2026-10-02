@@ -5,6 +5,7 @@ import {
   findDoseLog,
   moveDose,
   setDoseState,
+  setDoseStateDetailed,
   type DoseOutcome,
   type DoseRef,
 } from '@/features/doses/state';
@@ -20,6 +21,8 @@ export type PastDoseEdit =
 export interface EditResult {
   /** Reverses the change, restoring the previous log and inventory. */
   undo: () => Promise<void>;
+  /** Quantity that could not be taken out of the recorded supply because it ran out (usually 0). */
+  shortfall: number;
 }
 
 const outcomeOf = (log: DoseLog | null): DoseOutcome | null =>
@@ -53,8 +56,8 @@ export async function editScheduledDose(
   edit: PastDoseEdit,
   now: Date = new Date(),
 ): Promise<EditResult> {
-  const prior = await setDoseState(db, ref, toOutcome(edit, now));
-  return { undo: async () => void (await setDoseState(db, ref, outcomeOf(prior))) };
+  const { prior, shortfall } = await setDoseStateDetailed(db, ref, toOutcome(edit, now));
+  return { shortfall, undo: async () => void (await setDoseState(db, ref, outcomeOf(prior))) };
 }
 
 function checkAsNeeded(quantity: number, takenAt: Date, now: Date) {
@@ -71,12 +74,12 @@ export async function addAsNeededDose(
   checkAsNeeded(input.quantity, input.takenAt, now);
   const ref = { medicationId: input.medicationId, scheduledFor: input.takenAt.toISOString() };
   if (await findDoseLog(db, ref)) throw new Error('A dose is already logged at that exact time.');
-  await setDoseState(db, ref, {
+  const { shortfall } = await setDoseStateDetailed(db, ref, {
     status: 'taken',
     quantity: input.quantity,
     actedAt: ref.scheduledFor,
   });
-  return { undo: async () => void (await setDoseState(db, ref, null)) };
+  return { shortfall, undo: async () => void (await setDoseState(db, ref, null)) };
 }
 
 /** Changes the quantity and/or time of a logged as-needed dose (the time is the dose's key). */
@@ -91,19 +94,25 @@ export async function editAsNeededDose(
   const to: DoseRef = { medicationId: log.medicationId, scheduledFor: input.takenAt.toISOString() };
   const next: DoseOutcome = { status: 'taken', quantity: input.quantity, actedAt: to.scheduledFor };
   if (to.scheduledFor === from.scheduledFor) {
-    await setDoseState(db, from, next);
-    return { undo: async () => void (await setDoseState(db, from, outcomeOf(log))) };
+    const { shortfall } = await setDoseStateDetailed(db, from, next);
+    return {
+      shortfall,
+      undo: async () => void (await setDoseState(db, from, outcomeOf(log))),
+    };
   }
   if (await findDoseLog(db, to)) throw new Error('A dose is already logged at that exact time.');
-  await moveDose(db, from, to, next);
-  return { undo: async () => void (await moveDose(db, to, from, outcomeOf(log) as DoseOutcome)) };
+  const { shortfall } = await moveDose(db, from, to, next);
+  return {
+    shortfall,
+    undo: async () => void (await moveDose(db, to, from, outcomeOf(log) as DoseOutcome)),
+  };
 }
 
 /** Removes a logged as-needed dose and gives the supply back. */
 export async function deleteAsNeededDose(db: Database, log: DoseLog): Promise<EditResult> {
   const ref = { medicationId: log.medicationId, scheduledFor: log.scheduledFor };
   await setDoseState(db, ref, null);
-  return { undo: async () => void (await setDoseState(db, ref, outcomeOf(log))) };
+  return { shortfall: 0, undo: async () => void (await setDoseState(db, ref, outcomeOf(log))) };
 }
 
 export type EditFormResult =

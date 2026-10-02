@@ -58,6 +58,8 @@ export interface DoseLog {
   status: DoseStatus;
   actedAt: UtcIso | null;
   quantity: number | null;
+  /** Supply a taken dose actually used (less than `quantity` if supply ran out); null = `quantity`. */
+  supplyUsed: number | null;
   note: string | null;
   createdAt: UtcIso;
   updatedAt: UtcIso;

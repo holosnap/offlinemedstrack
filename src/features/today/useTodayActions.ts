@@ -13,6 +13,7 @@ import {
 import type { AsNeededEntry, TimelineDose } from '@/features/doses/timeline';
 import { expoPort } from '@/features/reminders/expoPort';
 import { syncReminders } from '@/features/reminders/sync';
+import { shortfallMessage } from '@/features/doses/shortfall';
 import { formatClock, formatQuantity } from '@/lib/format';
 
 export interface UndoState {
@@ -27,10 +28,12 @@ export function useTodayActions(reload: () => void) {
   const getDatabase = useDatabase();
   const [error, setError] = useState<string | null>(null);
   const [undo, setUndo] = useState<UndoState | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   const act = useCallback(
     async (message: string, perform: Perform): Promise<boolean> => {
       setError(null);
+      setWarning(null);
       try {
         const db = await getDatabase();
         const deps: DoseActionDeps = { db, port: expoPort };
@@ -76,11 +79,14 @@ export function useTodayActions(reload: () => void) {
   return {
     error,
     undo,
+    warning,
+    dismissWarning: () => setWarning(null),
     dismissUndo: () => setUndo(null),
 
     taken: (d: TimelineDose, options: { quantity?: number; takenAt?: Date } = {}) =>
       act(`${d.name} marked taken`, async (deps) => {
-        const { prior } = await takeDose(deps, refOf(d), options);
+        const { prior, shortfall } = await takeDose(deps, refOf(d), options);
+        setWarning(shortfallMessage(d.name, shortfall));
         return revertTo(d, prior)(deps);
       }),
 
@@ -108,11 +114,12 @@ export function useTodayActions(reload: () => void) {
         `${entry.medication.name} logged at ${formatClock(options.takenAt ?? new Date())}`,
         async (deps) => {
           const quantity = options.quantity ?? entry.quantity;
-          const { scheduledFor } = await logAsNeededDose(deps, {
+          const { scheduledFor, shortfall } = await logAsNeededDose(deps, {
             medicationId: entry.medication.id,
             quantity,
             takenAt: options.takenAt,
           });
+          setWarning(shortfallMessage(entry.medication.name, shortfall));
           return () => undoDose(deps, { medicationId: entry.medication.id, scheduledFor }, null);
         },
       ),

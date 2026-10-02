@@ -17,3 +17,5 @@ export const MAX_SCHEDULED_DOSES = 56;
 
 export const DOSE_ID_PREFIX = 'dose:';
 export const SNOOZE_ID_PREFIX = 'snooze:';
+/** A "open the app to keep your reminders going" notice after the last scheduled reminder. */
+export const NUDGE_ID_PREFIX = 'nudge:';

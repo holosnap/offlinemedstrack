@@ -177,6 +177,12 @@ export async function updateSchedule(
     endDate: patch.endDate === undefined ? existing.endDate : patch.endDate,
     doseQuantity: patch.doseQuantity ?? existing.doseQuantity,
   });
+  const timingChanged =
+    s.type !== existing.type ||
+    JSON.stringify(s.times) !== JSON.stringify(existing.times) ||
+    JSON.stringify(s.daysOfWeek) !== JSON.stringify(existing.daysOfWeek) ||
+    s.intervalDays !== existing.intervalDays ||
+    s.startDate !== existing.startDate;
   const { clause, params } = buildSet({
     type: s.type,
     times: JSON.stringify(s.times),
@@ -185,7 +191,9 @@ export async function updateSchedule(
     start_date: s.startDate,
     end_date: s.endDate,
     dose_quantity: s.doseQuantity,
-    updated_at: nowUtc(),
+    // `updated_at` marks when the dose times last changed: doses before it are not expected (see
+    // `isMissed`). Changing only the quantity or end date must not hide earlier doses today.
+    updated_at: timingChanged ? nowUtc() : existing.updatedAt,
   });
   await db.runAsync(`UPDATE schedules SET ${clause} WHERE id = ?`, [...params, id]);
   return getScheduleOrThrow(db, id);

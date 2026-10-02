@@ -1,8 +1,8 @@
-import { NotFoundError } from '@/db/errors';
 import type { DoseLog, DoseStatus } from '@/db/models';
 import {
   adjustInventoryQuantity,
   deleteDoseLog,
+  getInventory,
   listDoseLogsInRange,
   recordDose,
 } from '@/db/repositories';
@@ -20,9 +20,16 @@ export interface DoseOutcome {
   actedAt: UtcIso | null;
 }
 
-/** Supply used by a log: only a taken dose consumes anything. Skipped, missed, snoozed use none. */
-export const consumedQuantity = (log: Pick<DoseLog, 'status' | 'quantity'> | null): number =>
-  log?.status === 'taken' ? (log.quantity ?? 0) : 0;
+/**
+ * Supply used by a log: only a taken dose consumes anything (skipped, missed and snoozed use
+ * none). It is what was actually deducted, which is less than the dose quantity if the recorded
+ * supply ran out first; older logs fall back to the quantity.
+ */
+export const consumedQuantity = (
+  log: Pick<DoseLog, 'status' | 'quantity' | 'supplyUsed'> | null,
+): number => (log?.status === 'taken' ? (log.supplyUsed ?? log.quantity ?? 0) : 0);
+
+const EPSILON = 1e-9;
 
 export async function findDoseLog(db: Database, ref: DoseRef): Promise<DoseLog | null> {
   const to = new Date(new Date(ref.scheduledFor).getTime() + 1).toISOString();
@@ -32,52 +39,81 @@ export async function findDoseLog(db: Database, ref: DoseRef): Promise<DoseLog |
   return log ?? null;
 }
 
+export interface DoseStateChange {
+  /** The log before the change (null if there was none), for undo. */
+  prior: DoseLog | null;
+  /**
+   * How much of a taken dose could not be taken out of the recorded supply because the supply ran
+   * out first (0 when there was enough, or when supply isn't tracked). Supply never goes below
+   * zero; callers should warn the person so they can correct the count.
+   */
+  shortfall: number;
+}
+
 /** Runs inside a transaction: sets the log for `ref` to `next` and adjusts inventory to match. */
 async function applyDoseState(
   db: Database,
   ref: DoseRef,
   next: DoseOutcome | null,
-): Promise<DoseLog | null> {
+): Promise<DoseStateChange> {
   const prior = await findDoseLog(db, ref);
-  const delta = consumedQuantity(next) - consumedQuantity(prior);
-  if (delta !== 0) {
-    try {
-      await adjustInventoryQuantity(db, ref.medicationId, -delta);
-    } catch (error) {
-      // Supply isn't tracked for this medication.
-      if (!(error instanceof NotFoundError)) throw error;
-    }
+  const priorUsed = consumedQuantity(prior);
+  const wanted = next?.status === 'taken' ? (next.quantity ?? 0) : 0;
+
+  let used = wanted;
+  let tracked = false;
+  const inventory = await getInventory(db, ref.medicationId);
+  if (inventory) {
+    tracked = true;
+    // Give back what the previous log used, then take what is available (never below zero).
+    const available = inventory.currentQuantity + priorUsed;
+    used = Math.min(wanted, available);
+    const delta = priorUsed - used;
+    if (Math.abs(delta) > EPSILON) await adjustInventoryQuantity(db, ref.medicationId, delta);
   }
+
   if (next) {
     await recordDose(db, {
       medicationId: ref.medicationId,
       scheduledFor: ref.scheduledFor,
       status: next.status,
       quantity: next.quantity,
+      supplyUsed: next.status === 'taken' && tracked ? used : null,
       actedAt: next.actedAt,
     });
   } else if (prior) {
     await deleteDoseLog(db, prior.id);
   }
-  return prior;
+  const shortfall = tracked && wanted - used > EPSILON ? wanted - used : 0;
+  return { prior, shortfall };
 }
 
 /**
  * The one place a dose's state changes. Sets the log for `ref` to `next` (or removes it when
  * `next` is null) and keeps inventory in step in the same transaction: inventory goes down by the
  * quantity of a taken dose and comes back if that dose is later changed or undone. Skipping or
- * missing never touches inventory. Returns the previous log so callers can offer undo.
+ * missing never touches inventory. Supply never goes below zero: if it runs out the shortfall is
+ * reported and exactly what was deducted is what is given back later.
  */
+export async function setDoseStateDetailed(
+  db: Database,
+  ref: DoseRef,
+  next: DoseOutcome | null,
+): Promise<DoseStateChange> {
+  let change = { prior: null, shortfall: 0 } as DoseStateChange;
+  await db.withTransactionAsync(async () => {
+    change = await applyDoseState(db, ref, next);
+  });
+  return change;
+}
+
+/** Like `setDoseStateDetailed`, returning only the previous log. */
 export async function setDoseState(
   db: Database,
   ref: DoseRef,
   next: DoseOutcome | null,
 ): Promise<DoseLog | null> {
-  let prior = null as DoseLog | null;
-  await db.withTransactionAsync(async () => {
-    prior = await applyDoseState(db, ref, next);
-  });
-  return prior;
+  return (await setDoseStateDetailed(db, ref, next)).prior;
 }
 
 /**
@@ -90,13 +126,14 @@ export async function moveDose(
   from: DoseRef,
   to: DoseRef,
   next: DoseOutcome,
-): Promise<DoseLog | null> {
-  let prior = null as DoseLog | null;
+): Promise<DoseStateChange> {
+  let change = { prior: null, shortfall: 0 } as DoseStateChange;
   await db.withTransactionAsync(async () => {
-    prior = await applyDoseState(db, from, null);
-    await applyDoseState(db, to, next);
+    const removed = await applyDoseState(db, from, null);
+    const added = await applyDoseState(db, to, next);
+    change = { prior: removed.prior, shortfall: added.shortfall };
   });
-  return prior;
+  return change;
 }
 
 /** Puts a dose back the way it was (e.g. from a snapshot returned by `setDoseState`). */

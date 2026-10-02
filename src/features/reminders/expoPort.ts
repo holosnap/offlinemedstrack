@@ -29,6 +29,21 @@ export const expoPort: NotificationsPort = {
     });
   },
 
+  async listPresented() {
+    try {
+      const presented = await Notifications.getPresentedNotificationsAsync();
+      return presented.map((n) => {
+        const id = n.request.content.data?.medicationId;
+        return {
+          identifier: n.request.identifier,
+          medicationId: typeof id === 'number' ? id : null,
+        };
+      });
+    } catch {
+      return [];
+    }
+  },
+
   async schedule({ identifier, title, body, fireAt, data, sound }) {
     await Notifications.scheduleNotificationAsync({
       identifier,

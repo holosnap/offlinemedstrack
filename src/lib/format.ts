@@ -37,7 +37,8 @@ function clockOptions(): Intl.DateTimeFormatOptions {
   const options: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
   if (timeFormatPreference === '12h') options.hour12 = true;
   if (timeFormatPreference === '24h') {
-    options.hour12 = false;
+    // `hourCycle: 'h23'` (not `hour12: false`) so midnight is "00:05", never "24:05".
+    options.hourCycle = 'h23';
     options.hour = '2-digit';
   }
   return options;

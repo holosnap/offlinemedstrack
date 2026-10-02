@@ -68,8 +68,9 @@ function ScheduledRow({
       ) : (
         <Button
           label="Edit"
+          accessibilityLabel={`Edit ${dose.name} ${dose.time}`}
           variant="secondary"
-          accessibilityHint={`Change what happened with the ${dose.time} ${dose.name} dose`}
+          accessibilityHint="Change what happened with this dose"
           onPress={() => setEditing(true)}
         />
       )}
@@ -115,9 +116,15 @@ function AsNeededRow({
         />
       ) : (
         <View style={styles.buttons}>
-          <Button label="Edit" variant="secondary" onPress={() => setEditing(true)} />
+          <Button
+            label="Edit"
+            accessibilityLabel={`Edit ${entry.name} dose at ${timeText}`}
+            variant="secondary"
+            onPress={() => setEditing(true)}
+          />
           <Button
             label="Delete"
+            accessibilityLabel={`Delete ${entry.name} dose at ${timeText}`}
             variant="danger"
             accessibilityHint="Removes this dose and gives the supply back"
             onPress={() => actions.removeAsNeeded(entry.name, log)}
