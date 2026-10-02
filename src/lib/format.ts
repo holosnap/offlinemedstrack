@@ -25,13 +25,28 @@ export function formatQuantity(value: number): string {
   return String(Number(value.toFixed(2)));
 }
 
+export type TimeFormatPreference = 'system' | '12h' | '24h';
+let timeFormatPreference: TimeFormatPreference = 'system';
+
+/** Sets the app-wide 12/24-hour preference used by every time the app displays. */
+export function setTimeFormatPreference(preference: TimeFormatPreference): void {
+  timeFormatPreference = preference;
+}
+
+function clockOptions(): Intl.DateTimeFormatOptions {
+  const options: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
+  if (timeFormatPreference === '12h') options.hour12 = true;
+  if (timeFormatPreference === '24h') {
+    options.hour12 = false;
+    options.hour = '2-digit';
+  }
+  return options;
+}
+
 export function formatTime(time: LocalTime): string {
   if (!isLocalTime(time)) return time;
   const [hour, minute] = time.split(':').map(Number);
-  return new Date(2000, 0, 1, hour, minute).toLocaleTimeString(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return new Date(2000, 0, 1, hour, minute).toLocaleTimeString(undefined, clockOptions());
 }
 
 function localDateToDate(date: LocalDate): Date {
@@ -51,7 +66,7 @@ export function formatLocalDate(date: LocalDate, options: { weekday?: boolean } 
 /** "Today at 8:00 AM", "Tomorrow at 8:00 PM", or "Mon, Oct 5 at 8:00 AM". */
 export function formatDateTime(instant: UtcIso, now: Date = new Date()): string {
   const date = new Date(instant);
-  const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const time = date.toLocaleTimeString(undefined, clockOptions());
   const day = localDateOf(date);
   const today = localDateOf(now);
   if (day === today) return `Today at ${time}`;
@@ -93,7 +108,7 @@ export function describeSchedule(schedule: ScheduleShape): string {
 /** "8:05 AM" for an instant, in the device's time zone. */
 export function formatClock(value: Date | UtcIso): string {
   const date = typeof value === 'string' ? new Date(value) : value;
-  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return date.toLocaleTimeString(undefined, clockOptions());
 }
 
 const PHONE_CHARS = /^\+?[\d\s().-]+$/;

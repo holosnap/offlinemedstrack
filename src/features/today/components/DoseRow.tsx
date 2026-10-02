@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText, Badge, Button, Card, spacing, usePalette } from '@/components';
-import { SNOOZE_MINUTES } from '@/features/reminders/constants';
 import { snoozeUntil, type TimelineDose } from '@/features/doses/timeline';
 import { formatClock, formatQuantity } from '@/lib/format';
 import type { TodayActions } from '../useTodayActions';
@@ -12,9 +11,11 @@ interface DoseRowProps {
   dose: TimelineDose;
   actions: TodayActions;
   now: Date;
+  /** Snooze length from Settings, shown on the button. */
+  snoozeMinutes: number;
 }
 
-export function statusText(dose: TimelineDose): string {
+export function statusText(dose: TimelineDose, snoozeMinutes: number): string {
   const due = formatClock(dose.scheduledFor);
   switch (dose.status) {
     case 'upcoming':
@@ -22,7 +23,7 @@ export function statusText(dose: TimelineDose): string {
     case 'overdue':
       return `Overdue, was due ${due}`;
     case 'snoozed': {
-      const until = dose.log ? snoozeUntil(dose.log) : null;
+      const until = dose.log ? snoozeUntil(dose.log, snoozeMinutes) : null;
       return until ? `Snoozed until ${formatClock(until)}` : 'Snoozed';
     }
     case 'taken': {
@@ -40,7 +41,7 @@ export function statusText(dose: TimelineDose): string {
 }
 
 /** One scheduled dose: what it is, its status, and the actions that apply to that status. */
-export function DoseRow({ dose, actions, now }: DoseRowProps) {
+export function DoseRow({ dose, actions, now, snoozeMinutes }: DoseRowProps) {
   const palette = usePalette();
   const [mode, setMode] = useState<'closed' | 'more' | 'custom'>('closed');
   const resolved = dose.status === 'taken' || dose.status === 'skipped';
@@ -57,7 +58,7 @@ export function DoseRow({ dose, actions, now }: DoseRowProps) {
       <View
         testID={`dose-${dose.key}`}
         accessible
-        accessibilityLabel={`${dose.name}, ${dose.strength}, ${dose.amount}. ${statusText(dose)}`}
+        accessibilityLabel={`${dose.name}, ${dose.strength}, ${dose.amount}. ${statusText(dose, snoozeMinutes)}`}
         style={styles.info}
       >
         <AppText variant="heading">{dose.name}</AppText>
@@ -66,7 +67,7 @@ export function DoseRow({ dose, actions, now }: DoseRowProps) {
           color={dose.overdue ? palette.danger : undefined}
           style={dose.overdue ? styles.bold : undefined}
         >
-          {statusText(dose)}
+          {statusText(dose, snoozeMinutes)}
         </AppText>
         {dose.overdue ? <Badge tone="warning" label="Overdue" /> : null}
         {dose.status === 'missed' ? <Badge label="Missed" /> : null}
@@ -104,7 +105,7 @@ export function DoseRow({ dose, actions, now }: DoseRowProps) {
               />
               {dose.status !== 'missed' ? (
                 <Button
-                  label={`Snooze ${SNOOZE_MINUTES} min`}
+                  label={`Snooze ${snoozeMinutes} min`}
                   variant="secondary"
                   onPress={() => actions.snooze(dose)}
                 />

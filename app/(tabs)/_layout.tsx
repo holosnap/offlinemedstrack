@@ -1,6 +1,13 @@
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
+
+import { useSettings } from '@/features/settings/SettingsProvider';
 
 export default function TabsLayout() {
+  const { settings, ready } = useSettings();
+  if (!ready) return null;
+  // First run: the introduction comes before anything else.
+  if (!settings.onboardingComplete) return <Redirect href="/onboarding" />;
+
   return (
     <Tabs
       screenOptions={{

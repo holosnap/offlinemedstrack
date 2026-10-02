@@ -14,6 +14,8 @@ export interface NotificationRequest {
   body: string;
   fireAt: Date;
   data: Record<string, unknown>;
+  /** Whether the notification plays a sound. */
+  sound: boolean;
 }
 
 /** The slice of expo-notifications the reminder logic needs, so it can be tested with a fake. */
@@ -30,5 +32,6 @@ export interface DoseNotificationData extends Record<string, unknown> {
   medicationId: number;
   scheduledFor: UtcIso;
   quantity: number;
+  sound: boolean;
   content: string;
 }

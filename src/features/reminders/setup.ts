@@ -7,6 +7,7 @@ import {
   ACTION_TAKEN,
   DOSE_CATEGORY_ID,
   DOSE_CHANNEL_ID,
+  DOSE_SILENT_CHANNEL_ID,
   SNOOZE_MINUTES,
 } from './constants';
 
@@ -15,25 +16,29 @@ import {
 // sure a tap is never silently lost.
 const opensAppToForeground = Platform.OS === 'ios';
 
-async function registerDoseCategory(): Promise<void> {
+async function registerDoseCategory(snoozeMinutes: number): Promise<void> {
   await Notifications.setNotificationCategoryAsync(DOSE_CATEGORY_ID, [
     { identifier: ACTION_TAKEN, buttonTitle: 'Taken', options: { opensAppToForeground } },
     {
       identifier: ACTION_SNOOZE,
-      buttonTitle: `Snooze ${SNOOZE_MINUTES} min`,
+      buttonTitle: `Snooze ${snoozeMinutes} min`,
       options: { opensAppToForeground },
     },
     { identifier: ACTION_SKIP, buttonTitle: 'Skip', options: { opensAppToForeground } },
   ]);
 }
 
-/** One-time notification setup: foreground behavior, Android channel, action buttons. */
-export async function setupNotifications(): Promise<void> {
+/**
+ * Notification setup: foreground behavior, Android channels, and action buttons. Safe to call
+ * again when the snooze length changes (the button label shows it).
+ */
+export async function setupNotifications(options: { snoozeMinutes?: number } = {}): Promise<void> {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
+    handleNotification: async (notification) => ({
       shouldShowBanner: true,
       shouldShowList: true,
-      shouldPlaySound: true,
+      // Each notification records whether sound was on when it was scheduled.
+      shouldPlaySound: notification.request.content.data?.sound !== false,
       shouldSetBadge: false,
     }),
   });
@@ -42,6 +47,11 @@ export async function setupNotifications(): Promise<void> {
       name: 'Dose reminders',
       importance: Notifications.AndroidImportance.HIGH,
     });
+    await Notifications.setNotificationChannelAsync(DOSE_SILENT_CHANNEL_ID, {
+      name: 'Dose reminders (silent)',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: null,
+    });
   }
-  await registerDoseCategory();
+  await registerDoseCategory(options.snoozeMinutes ?? SNOOZE_MINUTES);
 }

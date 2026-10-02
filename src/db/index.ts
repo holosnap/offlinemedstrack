@@ -5,3 +5,4 @@ export * from './errors';
 export * from './models';
 export * from './repositories';
 export type { Database } from './types';
+export { BACKUP_SCHEMA_VERSION, BACKUP_TABLES, BACKUP_SETTING_KEYS } from './backup';

@@ -10,6 +10,7 @@ import {
 } from '@/db/repositories';
 import type { Medication } from '@/db/models';
 import type { Database } from '@/db/types';
+import { getSettings } from '@/features/settings/settings';
 import { buildSummary } from '@/features/medications/summary';
 import {
   planRefillReminders,
@@ -54,9 +55,12 @@ interface Desired {
   body: string;
   fireAt: Date;
   data: Record<string, unknown>;
+  sound: boolean;
 }
 
-const contentKey = (title: string, body: string) => `${title}\n${body}`;
+/** What a pending notification must match to be kept: its text and its sound setting. */
+const contentKey = (title: string, body: string, sound: boolean) =>
+  `${title}\n${body}\n${sound ? 'sound' : 'silent'}`;
 
 /**
  * Works out each active medication's refill reminders from its supply, and stores the episode
@@ -131,6 +135,7 @@ async function doReconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
   );
 
   // Refill state is tracked whether or not notifications are allowed.
+  const { soundEnabled } = await getSettings(db);
   const refills = await planRefills(db, now);
   const medications = new Map(
     (await listMedications(db, { activeOnly: true })).map((m) => [m.id, m]),
@@ -144,10 +149,12 @@ async function doReconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
         title: r.title,
         body: r.body,
         fireAt: r.fireAt,
+        sound: soundEnabled,
         data: {
           kind: 'refill',
           medicationId: r.medicationId,
-          content: contentKey(r.title, r.body),
+          sound: soundEnabled,
+          content: contentKey(r.title, r.body, soundEnabled),
         },
       });
     }
@@ -163,13 +170,15 @@ async function doReconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
         medicationId: dose.medicationId,
         scheduledFor: dose.scheduledFor,
         quantity: dose.quantity,
-        content: contentKey(title, body),
+        sound: soundEnabled,
+        content: contentKey(title, body, soundEnabled),
       };
       desired.set(dose.id, {
         id: dose.id,
         title,
         body,
         fireAt: new Date(dose.scheduledFor),
+        sound: soundEnabled,
         data,
       });
     }
@@ -186,7 +195,8 @@ async function doReconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
       keep = permission === 'granted' && medicationId !== null && medications.has(medicationId);
     } else {
       const wanted = desired.get(p.identifier);
-      keep = wanted !== undefined && p.content === contentKey(wanted.title, wanted.body);
+      keep =
+        wanted !== undefined && p.content === contentKey(wanted.title, wanted.body, wanted.sound);
     }
     if (keep) {
       result.kept++;
@@ -205,6 +215,7 @@ async function doReconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
       body: want.body,
       fireAt: want.fireAt,
       data: want.data,
+      sound: want.sound,
     });
     result.scheduled++;
   }

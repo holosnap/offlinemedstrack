@@ -1,6 +1,6 @@
 import type { DoseLog } from '@/db/models';
 import type { Database } from '@/db/types';
-import { SNOOZE_MINUTES } from '@/features/reminders/constants';
+import { getSettings } from '@/features/settings/settings';
 import { snoozeNotificationId } from '@/features/reminders/planner';
 import type { NotificationsPort } from '@/features/reminders/ports';
 import { localToUtc, type LocalDate, type LocalTime, type UtcIso } from '@/lib/time';
@@ -50,25 +50,27 @@ export async function skipDose(deps: DoseActionDeps, ref: DoseRef): Promise<Dose
   return { prior };
 }
 
-/** Marks the dose snoozed and schedules a reminder `SNOOZE_MINUTES` from now. */
+/** Marks the dose snoozed and schedules a reminder (snooze length and sound come from Settings). */
 export async function snoozeDose(
   deps: DoseActionDeps,
   ref: DoseRef & { quantity: number },
   content: { title: string; body: string; data?: Record<string, unknown> },
 ): Promise<DoseAction & { until: Date }> {
   const now = nowOf(deps);
+  const settings = await getSettings(deps.db);
   const prior = await setDoseState(deps.db, ref, {
     status: 'snoozed',
     quantity: null,
     actedAt: now.toISOString(),
   });
-  const until = new Date(now.getTime() + SNOOZE_MINUTES * 60_000);
+  const until = new Date(now.getTime() + settings.snoozeMinutes * 60_000);
   if ((await deps.port.getPermissionState()) === 'granted') {
     await deps.port.schedule({
       identifier: snoozeNotificationId(ref.medicationId, ref.scheduledFor),
       title: content.title,
       body: content.body,
       fireAt: until,
+      sound: settings.soundEnabled,
       data: {
         ...content.data,
         medicationId: ref.medicationId,

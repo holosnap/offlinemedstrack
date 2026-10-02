@@ -22,7 +22,15 @@
       "favicon": "./assets/favicon.png"
     },
     "scheme": "offlinemedstrack",
-    "plugins": ["expo-router", "expo-sqlite", "expo-notifications"],
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-notifications",
+      [
+        "expo-local-authentication",
+        { "faceIDPermission": "Allow OfflineMedsTrack to use Face ID to unlock the app." }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }

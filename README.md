@@ -52,6 +52,13 @@ The home tab lists today's doses grouped by time of day (or exact time, see Sett
 
 Logging a dose as taken reduces your supply by the quantity taken; skipped and missed doses do not, and undoing a taken dose gives the supply back.
 
+## First run, settings, privacy and backup
+
+- **Onboarding:** on first launch the app explains what it does, shows that it is a reminder tool and not medical advice, asks for notification permission (after explaining why; denying is fine), and offers to add your first medication. You can also restore a backup there.
+- **Settings:** missed-dose window, default snooze length, default low-supply warning for new medications, notification sound on/off, 12/24-hour time, light/dark/match-phone theme, and grouping on the Today screen. The not-medical-advice notice is also shown in Settings.
+- **App lock (optional):** ask for Face ID, a fingerprint or the phone passcode when opening the app, and after it has been in the background for 30 seconds. The app also hides its contents in the app switcher while locked. Turning it on or off needs you to authenticate. Medication names can still appear in notifications on the lock screen.
+- **Backup and restore:** _Export backup_ saves all medications, schedules, dose history, supply and refills (and your preferences) to one JSON file through the share sheet. _Restore from backup_ replaces everything in the app with a backup file after you confirm. Files from a newer version of the app are refused; older ones are accepted. A damaged file is rejected before anything changes. The file is not encrypted and contains health information, so keep it somewhere private. App lock and first-run state stay specific to each phone.
+
 ## History
 
 The **History** tab shows a calendar where each day is colored (and marked with a symbol and spoken label) as all doses taken, some missed, none taken, or nothing scheduled. Tap a day to see its log. If you took a dose but forgot to record it, tap **Edit** to mark it taken (with the time and quantity), skipped, missed, or not recorded; you can also add, change or delete as-needed doses. Supply is adjusted to match every edit, and each change has an Undo.

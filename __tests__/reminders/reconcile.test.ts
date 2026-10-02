@@ -183,6 +183,7 @@ describe('reconcile', () => {
       body: 'y',
       fireAt: NOW,
       data: {},
+      sound: true,
     });
     await run();
     expect(port.pending.has('other:1')).toBe(true);
@@ -195,6 +196,7 @@ describe('reconcile', () => {
       body: '500 mg',
       fireAt: new Date(NOW.getTime() + 600_000),
       data: {},
+      sound: true,
     });
 
     it('keeps a pending snooze while the medication is active', async () => {

@@ -22,6 +22,7 @@ import {
 } from '@/db/models';
 import { DAY_ABBREVIATIONS, DAY_NAMES } from '@/lib/format';
 import { getPermissionState } from '@/features/reminders/permissions';
+import { useSettings } from '@/features/settings/SettingsProvider';
 import { loadMedicationForEdit, saveMedication } from '../data';
 import {
   FORM_UNIT_DEFAULTS,
@@ -67,7 +68,13 @@ export function MedicationFormScreen({ medicationId }: MedicationFormScreenProps
   const scrollRef = useRef<ScrollView>(null);
   const editing = medicationId !== undefined;
 
-  const [values, setValues] = useState<FormValues>(() => emptyFormValues());
+  const { settings } = useSettings();
+  const [values, setValues] = useState<FormValues>(() =>
+    emptyFormValues(new Date(), {
+      refillThreshold: settings.refillThresholdValue,
+      refillThresholdUnit: settings.refillThresholdUnit,
+    }),
+  );
   const [errors, setErrors] = useState<FormErrors>({});
   const [loading, setLoading] = useState(editing);
   const [loadError, setLoadError] = useState<string | null>(null);

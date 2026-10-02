@@ -80,7 +80,13 @@ export function TodayScreen() {
         <View key={group.key} style={styles.group}>
           <AppText variant="heading">{group.title}</AppText>
           {group.doses.map((dose) => (
-            <DoseRow key={dose.key} dose={dose} actions={actions} now={data.now} />
+            <DoseRow
+              key={dose.key}
+              dose={dose}
+              actions={actions}
+              now={data.now}
+              snoozeMinutes={data.settings.snoozeMinutes}
+            />
           ))}
         </View>
       ))}

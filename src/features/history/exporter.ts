@@ -9,8 +9,15 @@ export interface FileExporter {
   writeText(name: string, content: string): Promise<string>;
   /** Renders HTML to a PDF named `name` and returns its URI. */
   htmlToPdf(name: string, html: string): Promise<string>;
-  share(uri: string, kind: 'csv' | 'pdf', title: string): Promise<void>;
+  share(uri: string, kind: 'csv' | 'pdf' | 'json', title: string): Promise<void>;
 }
+
+const MIME_TYPES = { csv: 'text/csv', pdf: 'application/pdf', json: 'application/json' } as const;
+const UTIS = {
+  csv: 'public.comma-separated-values-text',
+  pdf: 'com.adobe.pdf',
+  json: 'public.json',
+} as const;
 
 export const expoExporter: FileExporter = {
   canShare: () => Sharing.isAvailableAsync(),
@@ -34,8 +41,8 @@ export const expoExporter: FileExporter = {
 
   async share(uri, kind, title) {
     await Sharing.shareAsync(uri, {
-      mimeType: kind === 'csv' ? 'text/csv' : 'application/pdf',
-      UTI: kind === 'csv' ? 'public.comma-separated-values-text' : 'com.adobe.pdf',
+      mimeType: MIME_TYPES[kind],
+      UTI: UTIS[kind],
       dialogTitle: title,
     });
   },

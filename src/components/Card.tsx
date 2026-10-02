@@ -8,12 +8,13 @@ interface CardProps {
   title?: string;
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
+  testID?: string;
 }
 
-export function Card({ title, children, style }: CardProps) {
+export function Card({ title, children, style, testID }: CardProps) {
   const palette = usePalette();
   return (
-    <View style={[styles.card, { backgroundColor: palette.surface }, style]}>
+    <View testID={testID} style={[styles.card, { backgroundColor: palette.surface }, style]}>
       {title ? <AppText variant="heading">{title}</AppText> : null}
       {children}
     </View>

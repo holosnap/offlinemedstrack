@@ -55,7 +55,12 @@ export const FORM_UNIT_DEFAULTS: Record<MedicationForm, string> = {
   other: 'units',
 };
 
-export function emptyFormValues(now: Date = new Date()): FormValues {
+export interface FormDefaults {
+  refillThreshold: number;
+  refillThresholdUnit: RefillThresholdUnit;
+}
+
+export function emptyFormValues(now: Date = new Date(), defaults?: FormDefaults): FormValues {
   return {
     name: '',
     dosageAmount: '',
@@ -71,8 +76,8 @@ export function emptyFormValues(now: Date = new Date()): FormValues {
     doseQuantity: '1',
     currentQuantity: '',
     inventoryUnit: FORM_UNIT_DEFAULTS.tablet,
-    refillThreshold: '7',
-    refillThresholdUnit: 'days',
+    refillThreshold: String(defaults?.refillThreshold ?? 7),
+    refillThresholdUnit: defaults?.refillThresholdUnit ?? 'days',
     refillsRemaining: '',
     pharmacyName: '',
     pharmacyPhone: '',

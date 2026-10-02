@@ -2,7 +2,6 @@ import type { DoseLog, Medication, Schedule } from '@/db/models';
 import { formatQuantity, formatTime } from '@/lib/format';
 import { scheduleOccursOn } from '@/lib/schedule';
 import { addDays, localToUtc, type LocalDate, type LocalTime, type UtcIso } from '@/lib/time';
-import { SNOOZE_MINUTES } from '@/features/reminders/constants';
 
 export type TimelineStatus = 'upcoming' | 'overdue' | 'snoozed' | 'taken' | 'skipped' | 'missed';
 
@@ -156,8 +155,8 @@ export function groupDoses(doses: readonly TimelineDose[], mode: DoseGroupMode):
 }
 
 /** When a snooze ends, derived from when it was tapped. */
-export const snoozeUntil = (log: DoseLog): Date | null =>
-  log.actedAt ? new Date(new Date(log.actedAt).getTime() + SNOOZE_MINUTES * 60_000) : null;
+export const snoozeUntil = (log: DoseLog, snoozeMinutes: number): Date | null =>
+  log.actedAt ? new Date(new Date(log.actedAt).getTime() + snoozeMinutes * 60_000) : null;
 
 export interface AsNeededEntry {
   medication: Medication;

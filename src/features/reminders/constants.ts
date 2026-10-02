@@ -1,10 +1,13 @@
 export const DOSE_CHANNEL_ID = 'doses';
+/** Android channel sounds can't be changed after creation, so silent reminders use their own. */
+export const DOSE_SILENT_CHANNEL_ID = 'doses-silent';
 export const DOSE_CATEGORY_ID = 'dose';
 
 export const ACTION_TAKEN = 'dose.taken';
 export const ACTION_SNOOZE = 'dose.snooze';
 export const ACTION_SKIP = 'dose.skip';
 
+/** Default snooze length; the person can change it in Settings. */
 export const SNOOZE_MINUTES = 10;
 
 /** How far ahead doses are scheduled. iOS keeps at most 64 pending local notifications. */

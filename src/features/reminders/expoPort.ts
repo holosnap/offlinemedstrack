@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
 
-import { DOSE_CATEGORY_ID, DOSE_CHANNEL_ID } from './constants';
+import { DOSE_CATEGORY_ID, DOSE_CHANNEL_ID, DOSE_SILENT_CHANNEL_ID } from './constants';
 import type { NotificationsPort, PermissionState } from './ports';
 
 export function toPermissionState(response: {
@@ -29,7 +29,7 @@ export const expoPort: NotificationsPort = {
     });
   },
 
-  async schedule({ identifier, title, body, fireAt, data }) {
+  async schedule({ identifier, title, body, fireAt, data, sound }) {
     await Notifications.scheduleNotificationAsync({
       identifier,
       content: {
@@ -37,12 +37,12 @@ export const expoPort: NotificationsPort = {
         body,
         data,
         categoryIdentifier: DOSE_CATEGORY_ID,
-        sound: 'default',
+        sound: sound ? 'default' : false,
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
         date: fireAt,
-        channelId: DOSE_CHANNEL_ID,
+        channelId: sound ? DOSE_CHANNEL_ID : DOSE_SILENT_CHANNEL_ID,
       },
     });
   },

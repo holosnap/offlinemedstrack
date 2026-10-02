@@ -12,6 +12,7 @@ import {
 } from '@/db/repositories';
 import type { Database } from '@/db/types';
 import { DatabaseProvider } from '@/db/DatabaseProvider';
+import { SettingsProvider } from '@/features/settings/SettingsProvider';
 import { getPermissionState } from '@/features/reminders/permissions';
 import { MedicationDetailScreen } from '@/features/medications/screens/MedicationDetailScreen';
 import { MedicationFormScreen } from '@/features/medications/screens/MedicationFormScreen';
@@ -39,7 +40,9 @@ jest.setTimeout(20_000);
 let db: Database;
 
 const wrap = (node: ReactNode) => (
-  <DatabaseProvider getDatabase={() => Promise.resolve(db)}>{node}</DatabaseProvider>
+  <DatabaseProvider getDatabase={() => Promise.resolve(db)}>
+    <SettingsProvider>{node}</SettingsProvider>
+  </DatabaseProvider>
 );
 
 async function seed(name: string, over: { quantity?: number; threshold?: number | null } = {}) {
